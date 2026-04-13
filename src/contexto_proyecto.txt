@@ -1,0 +1,1496 @@
+====================================================================================================
+EXPORTACIÓN DE CONTEXTO DE PROYECTO
+====================================================================================================
+Proyecto: D:/Proyecto astramaco iii/backend-astramaco/src
+Fecha: 2026-04-12 16:43:32
+Filtro por extensiones: Sí
+Extensiones seleccionadas: .css, .html, .java, .js, .json, .kt, .md, .py, .scss, .sql, .ts, .txt, .xml, .yaml, .yml
+
+----------------------------------------------------------------------------------------------------
+CARPETA: .
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src
+
+----------------------------------------------------------------------------------------------------
+CARPETA: main
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main
+
+----------------------------------------------------------------------------------------------------
+CARPETA: main\java
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java
+
+----------------------------------------------------------------------------------------------------
+CARPETA: main\java\com
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com
+
+----------------------------------------------------------------------------------------------------
+CARPETA: main\java\com\example
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example
+
+----------------------------------------------------------------------------------------------------
+CARPETA: main\java\com\example\backendastramaco
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco
+
+ARCHIVO: main\java\com\example\backendastramaco\BackendAstramacoApplication.java
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\BackendAstramacoApplication.java
+CONTENIDO INICIO
+package com.example.backendastramaco;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class BackendAstramacoApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(BackendAstramacoApplication.class, args);
+    }
+
+}
+
+CONTENIDO FIN
+
+----------------------------------------------------------------------------------------------------
+CARPETA: main\java\com\example\backendastramaco\config
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\config
+
+ARCHIVO: main\java\com\example\backendastramaco\config\DataInitializer.java
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\config\DataInitializer.java
+CONTENIDO INICIO
+package com.example.backendastramaco.config;
+
+import com.example.backendastramaco.model.Usuario;
+import com.example.backendastramaco.model.enums.Rol;
+import com.example.backendastramaco.repository.UsuarioRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Component;
+
+@Component
+@RequiredArgsConstructor
+public class DataInitializer implements CommandLineRunner {
+
+    private final UsuarioRepository usuarioRepository;
+    private final PasswordEncoder passwordEncoder;
+
+    @Override
+    public void run(String... args) {
+
+        if (usuarioRepository.findByUsername("admin").isEmpty()) {
+
+            Usuario admin = Usuario.builder()
+                    .username("admin")
+                    .password(passwordEncoder.encode("1234"))
+                    .rol(Rol.ADMIN)
+                    .activo(true)
+                    .build();
+
+            usuarioRepository.save(admin);
+
+            System.out.println("ADMIN creado");
+        }
+    }
+}
+CONTENIDO FIN
+
+----------------------------------------------------------------------------------------------------
+CARPETA: main\java\com\example\backendastramaco\controller
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\controller
+
+ARCHIVO: main\java\com\example\backendastramaco\controller\AuthController.java
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\controller\AuthController.java
+CONTENIDO INICIO
+package com.example.backendastramaco.controller;
+
+import com.example.backendastramaco.model.Usuario;
+import com.example.backendastramaco.repository.UsuarioRepository;
+import com.example.backendastramaco.security.dto.AuthRequest;
+import com.example.backendastramaco.security.dto.AuthResponse;
+import com.example.backendastramaco.security.jwt.JwtUtil;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.*;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/auth")
+@RequiredArgsConstructor
+@CrossOrigin(origins = "*")
+public class AuthController {
+
+    private final AuthenticationManager authManager;
+    private final JwtUtil jwtUtil;
+    private final UsuarioRepository usuarioRepository;
+
+    @PostMapping("/login")
+    public AuthResponse login(@RequestBody AuthRequest request) {
+
+        authManager.authenticate(
+                new UsernamePasswordAuthenticationToken(
+                        request.getUsername(),
+                        request.getPassword()
+                )
+        );
+
+        String token = jwtUtil.generateToken(request.getUsername());
+
+        // 🔥 Obtener usuario desde BD
+        Usuario usuario = usuarioRepository.findByUsername(request.getUsername())
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+
+        return new AuthResponse(
+                token,
+                usuario.getUsername(),
+                usuario.getRol().name()
+        );
+    }
+}
+CONTENIDO FIN
+
+ARCHIVO: main\java\com\example\backendastramaco\controller\CargaController.java
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\controller\CargaController.java
+CONTENIDO INICIO
+package com.example.backendastramaco.controller;
+
+import com.example.backendastramaco.model.Carga;
+import com.example.backendastramaco.service.CargaService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/cargas")
+@RequiredArgsConstructor
+public class CargaController {
+
+    private final CargaService service;
+
+    @PostMapping("/{transportistaId}")
+    public Carga registrar(
+            @PathVariable Long transportistaId,
+            @RequestBody Carga carga) {
+
+        return service.registrarCarga(transportistaId, carga);
+    }
+
+    @GetMapping("/{transportistaId}")
+    public List<Carga> listar(@PathVariable Long transportistaId) {
+        return service.obtenerPorTransportista(transportistaId);
+    }
+}
+CONTENIDO FIN
+
+ARCHIVO: main\java\com\example\backendastramaco\controller\DocumentoPersonalController.java
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\controller\DocumentoPersonalController.java
+CONTENIDO INICIO
+package com.example.backendastramaco.controller;
+
+import com.example.backendastramaco.model.DocumentoPersonal;
+import com.example.backendastramaco.service.DocumentoPersonalService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/documentos")
+@RequiredArgsConstructor
+public class DocumentoPersonalController {
+
+    private final DocumentoPersonalService service;
+
+    @PostMapping("/{transportistaId}")
+    public DocumentoPersonal guardar(
+            @PathVariable Long transportistaId,
+            @RequestBody DocumentoPersonal doc) {
+
+        return service.guardar(transportistaId, doc);
+    }
+
+    @GetMapping("/transportista/{id}")
+    public List<DocumentoPersonal> listar(@PathVariable Long id) {
+        return service.listarPorTransportista(id);
+    }
+}
+CONTENIDO FIN
+
+ARCHIVO: main\java\com\example\backendastramaco\controller\PedidoController.java
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\controller\PedidoController.java
+CONTENIDO INICIO
+package com.example.backendastramaco.controller;
+
+import com.example.backendastramaco.dto.PedidoRequestDTO;
+import com.example.backendastramaco.model.Pedido;
+import com.example.backendastramaco.service.PedidoService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/pedidos")
+@RequiredArgsConstructor
+public class PedidoController {
+
+    private final PedidoService service;
+
+    @PostMapping
+    public Pedido crear(@RequestBody PedidoRequestDTO dto) {
+        return service.crearPedido(dto);
+    }
+
+    @GetMapping
+    public List<Pedido> listar() {
+        return service.listar();
+    }
+}
+CONTENIDO FIN
+
+ARCHIVO: main\java\com\example\backendastramaco\controller\TransportistaController.java
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\controller\TransportistaController.java
+CONTENIDO INICIO
+package com.example.backendastramaco.controller;
+
+import com.example.backendastramaco.dto.TransportistaRequestDTO;
+import com.example.backendastramaco.model.DocumentoPersonal;
+import com.example.backendastramaco.model.Transportista;
+import com.example.backendastramaco.model.Usuario;
+import com.example.backendastramaco.model.enums.TipoTransporte;
+
+import com.example.backendastramaco.repository.TransportistaRepository;
+import com.example.backendastramaco.repository.UsuarioRepository;
+import com.example.backendastramaco.service.DocumentoPersonalService;
+import com.example.backendastramaco.service.TransportistaService;
+import lombok.RequiredArgsConstructor;
+
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/transportistas")
+@RequiredArgsConstructor
+public class TransportistaController {
+
+    private final TransportistaService service;
+    private final DocumentoPersonalService documentoService;
+    private final UsuarioRepository usuarioRepository;
+    private final TransportistaRepository transportistaRepository;
+
+    @PostMapping
+    public Transportista crear(@RequestBody TransportistaRequestDTO dto) {
+        return service.crear(dto);
+    }
+
+    @GetMapping
+    public List<Transportista> listar() {
+        return service.listar();
+    }
+
+    @GetMapping("/tipo/{tipo}")
+    public List<Transportista> listarPorTipo(@PathVariable TipoTransporte tipo) {
+        return service.listarPorTipo(tipo);
+    }
+
+    @GetMapping("/{id}/documentos")
+    public List<DocumentoPersonal> documentos(@PathVariable Long id) {
+        return documentoService.listarPorTransportista(id);
+    }
+    @GetMapping("/me")
+    public Transportista obtenerMiPerfil(Authentication authentication) {
+
+        String username = authentication.getName();
+
+        Usuario usuario = usuarioRepository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+
+        return transportistaRepository.findByUsuario(usuario)
+                .orElseThrow(() -> new RuntimeException("Transportista no encontrado"));
+    }
+
+}
+CONTENIDO FIN
+
+ARCHIVO: main\java\com\example\backendastramaco\controller\UsuarioController.java
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\controller\UsuarioController.java
+CONTENIDO INICIO
+package com.example.backendastramaco.controller;
+
+import com.example.backendastramaco.model.Usuario;
+import com.example.backendastramaco.service.UsuarioService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/usuarios")
+@RequiredArgsConstructor
+@CrossOrigin(origins = "*")
+public class UsuarioController {
+
+    private final UsuarioService usuarioService;
+    private Usuario usuario;
+
+    @PostMapping
+    public Usuario crear(@RequestBody Usuario usuario) {
+        this.usuario = usuario;
+        return usuarioService.crear(usuario);
+    }
+}
+CONTENIDO FIN
+
+----------------------------------------------------------------------------------------------------
+CARPETA: main\java\com\example\backendastramaco\dto
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\dto
+
+ARCHIVO: main\java\com\example\backendastramaco\dto\PedidoRequestDTO.java
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\dto\PedidoRequestDTO.java
+CONTENIDO INICIO
+package com.example.backendastramaco.dto;
+
+import com.example.backendastramaco.model.enums.TipoMaterial;
+import com.example.backendastramaco.model.enums.TipoTransporte;
+import lombok.Data;
+
+import java.time.LocalDateTime;
+
+@Data
+public class PedidoRequestDTO {
+
+    private String clienteNombre;
+    private String clienteTelefono;
+    private String direccionEnvio;
+
+    private TipoTransporte tipoTransporte;
+    private TipoMaterial material;
+
+    private Double cantidad;
+    private Double montoTotal;
+    private Double adelanto;
+
+    private Integer piso;
+    private LocalDateTime horaEnvio;
+
+    private Long transportistaId;
+}
+CONTENIDO FIN
+
+ARCHIVO: main\java\com\example\backendastramaco\dto\PedidoResponseDTO.java
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\dto\PedidoResponseDTO.java
+CONTENIDO INICIO
+package com.example.backendastramaco.dto;
+
+import com.example.backendastramaco.model.enums.EstadoPedido;
+import lombok.Builder;
+import lombok.Data;
+
+@Data
+@Builder
+public class PedidoResponseDTO {
+
+    private Long id;
+    private String clienteNombre;
+    private EstadoPedido estado;
+    private String codigoVerificacion;
+}
+CONTENIDO FIN
+
+ARCHIVO: main\java\com\example\backendastramaco\dto\TransportistaRequestDTO.java
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\dto\TransportistaRequestDTO.java
+CONTENIDO INICIO
+package com.example.backendastramaco.dto;
+
+import com.example.backendastramaco.model.enums.TipoTransporte;
+import lombok.Getter;
+import lombok.Setter;
+
+@Getter
+@Setter
+public class TransportistaRequestDTO {
+
+    public String nombre;
+    public String apellidos;
+    public String dni;
+    public int edad;
+    public TipoTransporte tipoTransporte;
+    public String placa;
+    public String vehiculoInfo;
+    public Double capacidad;
+    public String estado; // 👈 aquí está la clave
+    public Long usuarioId;
+}
+CONTENIDO FIN
+
+----------------------------------------------------------------------------------------------------
+CARPETA: main\java\com\example\backendastramaco\model
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\model
+
+ARCHIVO: main\java\com\example\backendastramaco\model\Carga.java
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\model\Carga.java
+CONTENIDO INICIO
+package com.example.backendastramaco.model;
+
+
+import com.example.backendastramaco.model.enums.TipoMaterial;
+import jakarta.persistence.*;
+import lombok.*;
+
+@Entity
+@Table(name = "cargas")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class Carga {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @ManyToOne
+    @JoinColumn(name = "transportista_id")
+    private Transportista transportista;
+
+    @Enumerated(EnumType.STRING)
+    private TipoMaterial tipoMaterial;
+
+    private Double cantidadDisponible;
+}
+CONTENIDO FIN
+
+ARCHIVO: main\java\com\example\backendastramaco\model\DocumentoPersonal.java
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\model\DocumentoPersonal.java
+CONTENIDO INICIO
+package com.example.backendastramaco.model;
+
+import com.example.backendastramaco.model.enums.TipoDocumento;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import jakarta.persistence.*;
+import lombok.*;
+
+import java.time.LocalDate;
+
+@Entity
+@Table(name = "documentos_personales")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class DocumentoPersonal {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private TipoDocumento tipoDocumento;
+
+
+    @Column(nullable = false, length = 50)
+    private String valor;
+
+    // 🔥 SOLO PARA SOAT Y REVISION TECNICA
+    private LocalDate fechaEmision;
+    private LocalDate fechaVencimiento;
+
+    @Builder.Default
+    @Column(nullable = false)
+    private Boolean activo = true;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "transportista_id", nullable = false)
+    @JsonIgnore
+    private Transportista transportista;
+}
+CONTENIDO FIN
+
+ARCHIVO: main\java\com\example\backendastramaco\model\Pedido.java
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\model\Pedido.java
+CONTENIDO INICIO
+package com.example.backendastramaco.model;
+
+import com.example.backendastramaco.model.enums.EstadoPedido;
+import com.example.backendastramaco.model.enums.TipoMaterial;
+import com.example.backendastramaco.model.enums.TipoTransporte;
+import jakarta.persistence.*;
+import lombok.*;
+
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "pedidos")
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+public class Pedido {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private String clienteNombre;
+    private String clienteTelefono;
+    private String direccionEnvio;
+
+    @Enumerated(EnumType.STRING)
+    private TipoTransporte tipoTransporte;
+
+    @Enumerated(EnumType.STRING)
+    private TipoMaterial material;
+
+    private Double cantidad;
+    private Double montoTotal;
+    private Double adelanto;
+
+    private Integer piso;
+    private LocalDateTime horaEnvio;
+
+    @Enumerated(EnumType.STRING)
+    @Builder.Default
+    private EstadoPedido estado = EstadoPedido.EN_ENVIO;
+
+    private String codigoVerificacion;
+
+    @ManyToOne
+    @JoinColumn(name = "transportista_id")
+    private Transportista transportista;
+}
+CONTENIDO FIN
+
+ARCHIVO: main\java\com\example\backendastramaco\model\Transportista.java
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\model\Transportista.java
+CONTENIDO INICIO
+package com.example.backendastramaco.model;
+
+import com.example.backendastramaco.model.enums.EstadoTransportista;
+import com.example.backendastramaco.model.enums.TipoTransporte;
+import jakarta.persistence.*;
+import lombok.*;
+
+import java.util.List;
+
+@Entity
+@Table(name = "transportistas")
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+public class Transportista {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @OneToOne
+    @JoinColumn(name = "usuario_id", nullable = false, unique = true)
+    private Usuario usuario;
+
+    private String nombre;
+    private String apellidos;
+    private String dni;
+    private Integer edad;
+
+    @Enumerated(EnumType.STRING)
+    private TipoTransporte tipoTransporte;
+
+    private String placa;
+    private String vehiculoInfo;
+
+    private Double capacidad;
+
+    @OneToMany(mappedBy = "transportista", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<DocumentoPersonal> documentos;
+
+    @Enumerated(EnumType.STRING)
+    private EstadoTransportista estado;
+
+
+}
+CONTENIDO FIN
+
+ARCHIVO: main\java\com\example\backendastramaco\model\Usuario.java
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\model\Usuario.java
+CONTENIDO INICIO
+package com.example.backendastramaco.model;
+
+import com.example.backendastramaco.model.enums.Rol;
+import jakarta.persistence.*;
+import lombok.*;
+
+@Entity
+@Table(name = "usuarios")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class Usuario {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false, unique = true, length = 50)
+    private String username;
+
+    @Column(nullable = false)
+    private String password;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private Rol rol;
+
+    @Column(nullable = false)
+    private Boolean activo = Boolean.TRUE;
+}
+CONTENIDO FIN
+
+----------------------------------------------------------------------------------------------------
+CARPETA: main\java\com\example\backendastramaco\model\enums
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\model\enums
+
+ARCHIVO: main\java\com\example\backendastramaco\model\enums\EstadoPedido.java
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\model\enums\EstadoPedido.java
+CONTENIDO INICIO
+package com.example.backendastramaco.model.enums;
+
+public enum EstadoPedido {
+    EN_ENVIO,
+    EN_DESCARGA,
+    ENTREGADO,
+    CANCELADO
+}
+CONTENIDO FIN
+
+ARCHIVO: main\java\com\example\backendastramaco\model\enums\EstadoTransportista.java
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\model\enums\EstadoTransportista.java
+CONTENIDO INICIO
+package com.example.backendastramaco.model.enums;
+
+public enum EstadoTransportista {
+    ACTIVO,
+    INACTIVO
+}
+CONTENIDO FIN
+
+ARCHIVO: main\java\com\example\backendastramaco\model\enums\Rol.java
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\model\enums\Rol.java
+CONTENIDO INICIO
+package com.example.backendastramaco.model.enums;
+
+public enum Rol {
+    ADMIN,
+    USER,
+    TRANSPORTISTA
+}
+CONTENIDO FIN
+
+ARCHIVO: main\java\com\example\backendastramaco\model\enums\TipoDocumento.java
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\model\enums\TipoDocumento.java
+CONTENIDO INICIO
+package com.example.backendastramaco.model.enums;
+
+public enum TipoDocumento {
+    SOAT,
+    REVISION_TECNICA,
+    LICENCIA,
+    TARJETA_CIRCULACION,
+    DNI
+}
+CONTENIDO FIN
+
+ARCHIVO: main\java\com\example\backendastramaco\model\enums\TipoMaterial.java
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\model\enums\TipoMaterial.java
+CONTENIDO INICIO
+package com.example.backendastramaco.model.enums;
+
+public enum TipoMaterial {
+    PANDERETA,
+    TECHO,
+    ARENA_GRUESA,
+    ARENA_FINA,
+    ARENA_ASENTAR,
+    PIEDRA,
+    DESMONTE
+}
+CONTENIDO FIN
+
+ARCHIVO: main\java\com\example\backendastramaco\model\enums\TipoTransporte.java
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\model\enums\TipoTransporte.java
+CONTENIDO INICIO
+package com.example.backendastramaco.model.enums;
+
+public enum TipoTransporte {
+    VOLQUETERO,
+    CAMIONERO
+}
+CONTENIDO FIN
+
+----------------------------------------------------------------------------------------------------
+CARPETA: main\java\com\example\backendastramaco\repository
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\repository
+
+ARCHIVO: main\java\com\example\backendastramaco\repository\CargaRepository.java
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\repository\CargaRepository.java
+CONTENIDO INICIO
+package com.example.backendastramaco.repository;
+
+import com.example.backendastramaco.model.Carga;
+import com.example.backendastramaco.model.enums.TipoMaterial;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.Optional;
+
+public interface CargaRepository extends JpaRepository<Carga, Long> {
+    Optional<Carga> findByTransportistaIdAndTipoMaterial(Long id, TipoMaterial material);
+}
+CONTENIDO FIN
+
+ARCHIVO: main\java\com\example\backendastramaco\repository\DocumentoPersonalRepository.java
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\repository\DocumentoPersonalRepository.java
+CONTENIDO INICIO
+package com.example.backendastramaco.repository;
+
+import com.example.backendastramaco.model.DocumentoPersonal;
+import com.example.backendastramaco.model.enums.TipoDocumento;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
+
+public interface DocumentoPersonalRepository extends JpaRepository<DocumentoPersonal, Long> {
+    List<DocumentoPersonal> findByTransportistaId(Long transportistaId);
+    boolean existsByTransportistaIdAndTipoDocumento(Long transportistaId, TipoDocumento tipoDocumento);
+}
+CONTENIDO FIN
+
+ARCHIVO: main\java\com\example\backendastramaco\repository\PedidoRepository.java
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\repository\PedidoRepository.java
+CONTENIDO INICIO
+package com.example.backendastramaco.repository;
+
+import com.example.backendastramaco.model.Pedido;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+
+
+
+public interface PedidoRepository extends JpaRepository<Pedido, Long> {
+
+}
+CONTENIDO FIN
+
+ARCHIVO: main\java\com\example\backendastramaco\repository\TransportistaRepository.java
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\repository\TransportistaRepository.java
+CONTENIDO INICIO
+package com.example.backendastramaco.repository;
+
+import com.example.backendastramaco.model.Transportista;
+
+import com.example.backendastramaco.model.Usuario;
+import com.example.backendastramaco.model.enums.EstadoTransportista;
+import com.example.backendastramaco.model.enums.TipoTransporte;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+
+import java.util.List;
+import java.util.Optional;
+
+public interface TransportistaRepository extends JpaRepository<Transportista, Long> {
+    List<Transportista> findByTipoTransporteAndEstado(
+            TipoTransporte tipo, EstadoTransportista estado);
+    List<Transportista> findByTipoTransporte(TipoTransporte tipoTransporte);
+    Optional<Transportista> findByUsuario(Usuario usuario);
+
+}
+CONTENIDO FIN
+
+ARCHIVO: main\java\com\example\backendastramaco\repository\UsuarioRepository.java
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\repository\UsuarioRepository.java
+CONTENIDO INICIO
+package com.example.backendastramaco.repository;
+
+import com.example.backendastramaco.model.Usuario;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.Optional;
+
+public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
+    Optional<Usuario> findByUsername(String username);
+}
+CONTENIDO FIN
+
+----------------------------------------------------------------------------------------------------
+CARPETA: main\java\com\example\backendastramaco\security
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\security
+
+----------------------------------------------------------------------------------------------------
+CARPETA: main\java\com\example\backendastramaco\security\config
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\security\config
+
+ARCHIVO: main\java\com\example\backendastramaco\security\config\CorsConfig.java
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\security\config\CorsConfig.java
+CONTENIDO INICIO
+package com.example.backendastramaco.security.config;
+
+import org.springframework.context.annotation.*;
+import org.springframework.web.servlet.config.annotation.*;
+
+@Configuration
+public class CorsConfig {
+
+    @Bean
+    public WebMvcConfigurer corsConfigurer() {
+        return new WebMvcConfigurer() {
+            @Override
+            public void addCorsMappings(CorsRegistry registry) {
+
+                registry.addMapping("/**")
+                        .allowedOrigins("http://localhost:4200")
+                        .allowedMethods("*")
+                        .allowedHeaders("*");
+            }
+        };
+    }
+}
+CONTENIDO FIN
+
+ARCHIVO: main\java\com\example\backendastramaco\security\config\SecurityConfig.java
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\security\config\SecurityConfig.java
+CONTENIDO INICIO
+package com.example.backendastramaco.security.config;
+
+import com.example.backendastramaco.security.jwt.JwtFilter;
+import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.*;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.*;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+@Configuration
+@RequiredArgsConstructor
+public class SecurityConfig {
+
+    private final JwtFilter jwtFilter;
+
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+
+        http
+                .csrf(csrf -> csrf.disable())
+                .cors(cors -> {})
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/api/auth/**").permitAll() // login libre
+                        .anyRequest().authenticated()
+                )
+                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+
+        return http.build();
+    }
+
+    @Bean
+    public AuthenticationManager authenticationManager(
+            AuthenticationConfiguration config) throws Exception {
+        return config.getAuthenticationManager();
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+}
+CONTENIDO FIN
+
+----------------------------------------------------------------------------------------------------
+CARPETA: main\java\com\example\backendastramaco\security\dto
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\security\dto
+
+ARCHIVO: main\java\com\example\backendastramaco\security\dto\AuthRequest.java
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\security\dto\AuthRequest.java
+CONTENIDO INICIO
+package com.example.backendastramaco.security.dto;
+
+import lombok.Data;
+
+@Data
+public class AuthRequest {
+    private String username;
+    private String password;
+}
+CONTENIDO FIN
+
+ARCHIVO: main\java\com\example\backendastramaco\security\dto\AuthResponse.java
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\security\dto\AuthResponse.java
+CONTENIDO INICIO
+package com.example.backendastramaco.security.dto;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+
+@Data
+@AllArgsConstructor
+public class AuthResponse {
+
+    private String token;
+    private String username;
+    private String rol;
+}
+CONTENIDO FIN
+
+----------------------------------------------------------------------------------------------------
+CARPETA: main\java\com\example\backendastramaco\security\jwt
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\security\jwt
+
+ARCHIVO: main\java\com\example\backendastramaco\security\jwt\JwtFilter.java
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\security\jwt\JwtFilter.java
+CONTENIDO INICIO
+package com.example.backendastramaco.security.jwt;
+
+import com.example.backendastramaco.security.service.CustomUserDetailsService;
+import jakarta.servlet.*;
+import jakarta.servlet.http.*;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.*;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+import java.io.IOException;
+
+@Component
+@RequiredArgsConstructor
+public class JwtFilter extends OncePerRequestFilter {
+
+    private final JwtUtil jwtUtil;
+    private final CustomUserDetailsService userDetailsService;
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request,
+                                    HttpServletResponse response,
+                                    FilterChain filterChain)
+            throws ServletException, IOException {
+
+        final String header = request.getHeader("Authorization");
+
+        if (header == null || !header.startsWith("Bearer ")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        String token = header.substring(7);
+        String username = jwtUtil.extractUsername(token);
+
+        if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+
+            var userDetails = userDetailsService.loadUserByUsername(username);
+
+            if (jwtUtil.validateToken(token)) {
+
+                UsernamePasswordAuthenticationToken auth =
+                        new UsernamePasswordAuthenticationToken(
+                                userDetails,
+                                null,
+                                userDetails.getAuthorities()
+                        );
+
+                SecurityContextHolder.getContext().setAuthentication(auth);
+            }
+        }
+
+        filterChain.doFilter(request, response);
+    }
+}
+CONTENIDO FIN
+
+ARCHIVO: main\java\com\example\backendastramaco\security\jwt\JwtUtil.java
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\security\jwt\JwtUtil.java
+CONTENIDO INICIO
+package com.example.backendastramaco.security.jwt;
+
+import io.jsonwebtoken.*;
+import io.jsonwebtoken.security.Keys;
+import org.springframework.stereotype.Component;
+
+import java.security.Key;
+import java.util.Date;
+
+@Component
+public class JwtUtil {
+
+    private final Key key = Keys.hmacShaKeyFor(
+            "astramaco_secret_key_12345678901234567890".getBytes()
+    );
+
+    public String generateToken(String username) {
+        return Jwts.builder()
+                .setSubject(username)
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + 86400000))
+                .signWith(key)
+                .compact();
+    }
+
+    public String extractUsername(String token) {
+        return Jwts.parserBuilder() // 🔥 importante versión nueva
+                .setSigningKey(key)
+                .build()
+                .parseClaimsJws(token)
+                .getBody()
+                .getSubject();
+    }
+
+    public boolean validateToken(String token) {
+        try {
+            Jwts.parserBuilder()
+                    .setSigningKey(key)
+                    .build()
+                    .parseClaimsJws(token);
+            return true;
+        } catch (JwtException | IllegalArgumentException e) {
+            return false;
+        }
+    }
+}
+CONTENIDO FIN
+
+----------------------------------------------------------------------------------------------------
+CARPETA: main\java\com\example\backendastramaco\security\service
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\security\service
+
+ARCHIVO: main\java\com\example\backendastramaco\security\service\CustomUserDetailsService.java
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\security\service\CustomUserDetailsService.java
+CONTENIDO INICIO
+package com.example.backendastramaco.security.service;
+
+import com.example.backendastramaco.model.Usuario;
+import com.example.backendastramaco.repository.UsuarioRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.userdetails.*;
+import org.springframework.stereotype.Service;
+
+@Service
+@RequiredArgsConstructor
+public class CustomUserDetailsService implements UserDetailsService {
+
+    private final UsuarioRepository usuarioRepository;
+
+    @Override
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+
+        Usuario user = usuarioRepository.findByUsername(username)
+                .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado"));
+
+        return User.builder()
+                .username(user.getUsername())
+                .password(user.getPassword())
+                .roles(user.getRol().name())
+                .build();
+    }
+}
+CONTENIDO FIN
+
+----------------------------------------------------------------------------------------------------
+CARPETA: main\java\com\example\backendastramaco\service
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\service
+
+ARCHIVO: main\java\com\example\backendastramaco\service\CargaService.java
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\service\CargaService.java
+CONTENIDO INICIO
+package com.example.backendastramaco.service;
+
+import com.example.backendastramaco.model.Carga;
+import com.example.backendastramaco.model.Transportista;
+import com.example.backendastramaco.model.enums.TipoTransporte;
+import com.example.backendastramaco.repository.CargaRepository;
+import com.example.backendastramaco.repository.TransportistaRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+@Service
+@RequiredArgsConstructor
+public class CargaService {
+
+    private final CargaRepository cargaRepository;
+    private final TransportistaRepository transportistaRepository;
+
+    public Carga registrarCarga(Long transportistaId, Carga carga) {
+
+        Transportista t = transportistaRepository.findById(transportistaId)
+                .orElseThrow(() -> new RuntimeException("Transportista no existe"));
+
+        if (t.getTipoTransporte() != TipoTransporte.CAMIONERO) {
+            throw new RuntimeException("Solo camioneros pueden registrar carga");
+    }
+
+        carga.setTransportista(t);
+
+        return cargaRepository.save(carga);
+    }
+
+    public List<Carga> obtenerPorTransportista(Long id) {
+        return cargaRepository.findAll()
+                .stream()
+                .filter(c -> c.getTransportista().getId().equals(id))
+                .toList();
+    }
+}
+CONTENIDO FIN
+
+ARCHIVO: main\java\com\example\backendastramaco\service\DocumentoPersonalService.java
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\service\DocumentoPersonalService.java
+CONTENIDO INICIO
+package com.example.backendastramaco.service;
+
+import com.example.backendastramaco.model.DocumentoPersonal;
+import com.example.backendastramaco.model.Transportista;
+import com.example.backendastramaco.repository.DocumentoPersonalRepository;
+import com.example.backendastramaco.repository.TransportistaRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+@Service
+@RequiredArgsConstructor
+public class DocumentoPersonalService {
+
+    private final DocumentoPersonalRepository repository;
+    private final TransportistaRepository transportistaRepository;
+
+    public DocumentoPersonal guardar(Long transportistaId, DocumentoPersonal doc) {
+
+        Transportista t = transportistaRepository.findById(transportistaId)
+                .orElseThrow(() -> new RuntimeException("Transportista no existe"));
+
+        // 🔥 validar duplicado
+        boolean existe = repository.existsByTransportistaIdAndTipoDocumento(
+                transportistaId, doc.getTipoDocumento());
+
+        if (existe) {
+            throw new IllegalArgumentException("Documento ya registrado");
+        }
+
+        validarDocumento(doc);
+
+        doc.setTransportista(t);
+
+        return repository.save(doc);
+    }
+
+    public List<DocumentoPersonal> listarPorTransportista(Long id) {
+        return repository.findByTransportistaId(id);
+    }
+
+    private void validarDocumento(DocumentoPersonal doc) {
+
+        switch (doc.getTipoDocumento()) {
+
+            case SOAT, REVISION_TECNICA:
+                if (doc.getFechaVencimiento() == null) {
+                    throw new IllegalArgumentException("Requiere fecha");
+                }
+                break;
+
+            case LICENCIA, TARJETA_CIRCULACION:
+                if (!doc.getValor().equalsIgnoreCase("SI") &&
+                        !doc.getValor().equalsIgnoreCase("NO")) {
+                    throw new IllegalArgumentException("Debe ser SI o NO");
+                }
+                break;
+
+            default:
+                break;
+        }
+    }
+}
+CONTENIDO FIN
+
+ARCHIVO: main\java\com\example\backendastramaco\service\PedidoService.java
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\service\PedidoService.java
+CONTENIDO INICIO
+package com.example.backendastramaco.service;
+
+import com.example.backendastramaco.dto.PedidoRequestDTO;
+import com.example.backendastramaco.model.Carga;
+import com.example.backendastramaco.model.Pedido;
+import com.example.backendastramaco.model.Transportista;
+
+import com.example.backendastramaco.model.enums.TipoTransporte;
+import com.example.backendastramaco.repository.CargaRepository;
+import com.example.backendastramaco.repository.PedidoRepository;
+import com.example.backendastramaco.repository.TransportistaRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+
+@Service
+@RequiredArgsConstructor
+public class PedidoService {
+
+    private final PedidoRepository pedidoRepository;
+    private final TransportistaRepository transportistaRepository;
+    private final CargaRepository cargaRepository;
+
+    public Pedido crearPedido(PedidoRequestDTO dto) {
+
+        Transportista t = transportistaRepository.findById(dto.getTransportistaId())
+                .orElseThrow();
+
+        if (!t.getTipoTransporte().equals(dto.getTipoTransporte())) {
+            throw new RuntimeException("Tipo incorrecto");
+        }
+
+        // 🔥 CAMIONERO
+        if (t.getTipoTransporte() == TipoTransporte.CAMIONERO) {
+
+            Carga carga = cargaRepository
+                    .findByTransportistaIdAndTipoMaterial(t.getId(), dto.getMaterial())
+                    .orElseThrow();
+
+            if (carga.getCantidadDisponible() < dto.getCantidad()) {
+                throw new RuntimeException("Sin stock");
+            }
+
+            carga.setCantidadDisponible(
+                    carga.getCantidadDisponible() - dto.getCantidad()
+            );
+
+            cargaRepository.save(carga);
+        }
+
+        Pedido pedido = Pedido.builder()
+                .clienteNombre(dto.getClienteNombre())
+                .clienteTelefono(dto.getClienteTelefono())
+                .direccionEnvio(dto.getDireccionEnvio())
+                .tipoTransporte(dto.getTipoTransporte())
+                .material(dto.getMaterial())
+                .cantidad(dto.getCantidad())
+                .montoTotal(dto.getMontoTotal())
+                .adelanto(dto.getAdelanto())
+                .piso(dto.getPiso())
+                .horaEnvio(dto.getHoraEnvio())
+                .transportista(t)
+                .codigoVerificacion("1234")
+                .build();
+
+        return pedidoRepository.save(pedido);
+    }
+
+    public List<Pedido> listar() {
+        return pedidoRepository.findAll();
+    }
+}
+CONTENIDO FIN
+
+ARCHIVO: main\java\com\example\backendastramaco\service\TransportistaService.java
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\service\TransportistaService.java
+CONTENIDO INICIO
+package com.example.backendastramaco.service;
+
+import com.example.backendastramaco.dto.TransportistaRequestDTO;
+import com.example.backendastramaco.model.Transportista;
+import com.example.backendastramaco.model.Usuario;
+import com.example.backendastramaco.model.enums.EstadoTransportista;
+import com.example.backendastramaco.model.enums.Rol;
+import com.example.backendastramaco.model.enums.TipoTransporte;
+import com.example.backendastramaco.repository.TransportistaRepository;
+import com.example.backendastramaco.repository.UsuarioRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+@Service
+@RequiredArgsConstructor
+public class TransportistaService {
+
+    private final TransportistaRepository transportistaRepository;
+    private final UsuarioRepository usuarioRepository;
+    private final PasswordEncoder passwordEncoder;
+
+    public Transportista crear(TransportistaRequestDTO dto) {
+
+        Transportista t = new Transportista();
+
+        // 🔥 1. CREAR USUARIO AUTOMÁTICO
+        Usuario usuario = new Usuario();
+
+        String username = generarUsernameUnico(dto.nombre, dto.apellidos);
+
+        usuario.setUsername(username);
+
+        // 🔐 PASSWORD = DNI
+        usuario.setPassword(passwordEncoder.encode(dto.dni));
+
+        usuario.setRol(Rol.TRANSPORTISTA);
+        usuario.setActivo(true);
+
+        usuario = usuarioRepository.save(usuario);
+
+        // 🔗 ASIGNAR USUARIO AL TRANSPORTISTA
+        t.setUsuario(usuario);
+
+        // 📋 DATOS
+        t.setNombre(dto.nombre);
+        t.setApellidos(dto.apellidos);
+        t.setDni(dto.dni);
+        t.setEdad(dto.edad);
+        t.setTipoTransporte(dto.tipoTransporte);
+        t.setPlaca(dto.placa);
+        t.setVehiculoInfo(dto.vehiculoInfo);
+        t.setCapacidad(dto.capacidad);
+
+        // 🔥 ESTADO
+        if (dto.estado == null || dto.estado.isEmpty()) {
+            t.setEstado(EstadoTransportista.ACTIVO);
+        } else {
+            t.setEstado(EstadoTransportista.valueOf(dto.estado));
+        }
+
+        return transportistaRepository.save(t);
+    }
+    private String generarUsername(String nombre, String apellidos) {
+
+        String primerNombre = nombre.split(" ")[0].toLowerCase();
+        String primerApellido = apellidos.split(" ")[0].toLowerCase();
+
+        return primerNombre + "." + primerApellido;
+    }
+
+    private String generarUsernameUnico(String nombre, String apellidos) {
+
+        String base = generarUsername(nombre, apellidos);
+        String username = base;
+        int contador = 1;
+
+        while (usuarioRepository.findByUsername(username).isPresent()) {
+            username = base + contador;
+            contador++;
+        }
+
+        return username;
+    }
+
+
+    public List<Transportista> listarPorTipo(TipoTransporte tipo) {
+        return transportistaRepository
+                .findByTipoTransporteAndEstado(tipo, EstadoTransportista.ACTIVO);
+    }
+
+
+
+
+    public List<Transportista> listar() {
+        return transportistaRepository.findAll();
+    }
+}
+CONTENIDO FIN
+
+ARCHIVO: main\java\com\example\backendastramaco\service\UsuarioService.java
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\java\com\example\backendastramaco\service\UsuarioService.java
+CONTENIDO INICIO
+package com.example.backendastramaco.service;
+
+import com.example.backendastramaco.model.Usuario;
+import com.example.backendastramaco.repository.UsuarioRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+
+@Service
+@RequiredArgsConstructor
+public class UsuarioService {
+
+    private final UsuarioRepository usuarioRepository;
+    private final PasswordEncoder passwordEncoder;
+
+    public Usuario crear(Usuario usuario) {
+
+        usuario.setPassword(passwordEncoder.encode(usuario.getPassword()));
+        usuario.setActivo(true);
+
+        return usuarioRepository.save(usuario);
+    }
+}
+CONTENIDO FIN
+
+----------------------------------------------------------------------------------------------------
+CARPETA: main\resources
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\resources
+
+ARCHIVO: main\resources\application.yml
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\resources\application.yml
+CONTENIDO INICIO
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/astramaco_db?useSSL=false&serverTimezone=UTC
+    username: root
+    password: ""
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update   # ? crea y actualiza tablas automáticamente
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+server:
+  port: 8080
+CONTENIDO FIN
+
+----------------------------------------------------------------------------------------------------
+CARPETA: main\resources\static
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\resources\static
+ESTADO: Esta carpeta está vacía o no contiene archivos válidos según el filtro.
+
+----------------------------------------------------------------------------------------------------
+CARPETA: main\resources\templates
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\main\resources\templates
+ESTADO: Esta carpeta está vacía o no contiene archivos válidos según el filtro.
+
+----------------------------------------------------------------------------------------------------
+CARPETA: test
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\test
+
+----------------------------------------------------------------------------------------------------
+CARPETA: test\java
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\test\java
+
+----------------------------------------------------------------------------------------------------
+CARPETA: test\java\com
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\test\java\com
+
+----------------------------------------------------------------------------------------------------
+CARPETA: test\java\com\example
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\test\java\com\example
+
+----------------------------------------------------------------------------------------------------
+CARPETA: test\java\com\example\backendastramaco
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\test\java\com\example\backendastramaco
+
+ARCHIVO: test\java\com\example\backendastramaco\BackendAstramacoApplicationTests.java
+RUTA ABSOLUTA: D:/Proyecto astramaco iii/backend-astramaco/src\test\java\com\example\backendastramaco\BackendAstramacoApplicationTests.java
+CONTENIDO INICIO
+package com.example.backendastramaco;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.SpringBootTest;
+
+@SpringBootTest
+class BackendAstramacoApplicationTests {
+
+    @Test
+    void contextLoads() {
+    }
+
+}
+
+CONTENIDO FIN
