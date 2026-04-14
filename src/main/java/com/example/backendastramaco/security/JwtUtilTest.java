@@ -1,29 +1,13 @@
-package com.example.backendastramaco.security;
+package com.example.backendastramaco.security.jwt;
 
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class JwtUtilTest {
 
-    private JwtUtil jwtUtil;
-
-    @BeforeEach
-    void setUp() {
-        jwtUtil = new JwtUtil();
-
-        ReflectionTestUtils.setField(
-                jwtUtil,
-                "jwtSecret",
-                "ClaveSuperSeguraJWT2026_ClaveMinima32Bytes"
-        );
-        ReflectionTestUtils.setField(jwtUtil, "jwtExpirationMs", 86400000L);
-
-        jwtUtil.init();
-    }
+    private final JwtUtil jwtUtil = new JwtUtil();
 
     @Test
     @DisplayName("Debe generar un token válido")
