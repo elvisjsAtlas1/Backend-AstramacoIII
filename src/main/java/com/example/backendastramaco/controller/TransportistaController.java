@@ -51,7 +51,7 @@ public class TransportistaController {
     public Transportista obtenerMiPerfil(Authentication authentication) {
 
         if (authentication == null) {
-            throw new RuntimeException("No autenticado");
+            throw new IllegalArgumentException("No autenticado");
         }
 
         String username = authentication.getName();
