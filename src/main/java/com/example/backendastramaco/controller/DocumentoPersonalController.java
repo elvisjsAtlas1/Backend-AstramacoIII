@@ -1,5 +1,6 @@
 package com.example.backendastramaco.controller;
 
+import com.example.backendastramaco.dto.DocumentoPersonalRequestDTO;
 import com.example.backendastramaco.model.DocumentoPersonal;
 import com.example.backendastramaco.service.DocumentoPersonalService;
 import lombok.RequiredArgsConstructor;
@@ -17,7 +18,12 @@ public class DocumentoPersonalController {
     @PostMapping("/{transportistaId}")
     public DocumentoPersonal guardar(
             @PathVariable Long transportistaId,
-            @RequestBody DocumentoPersonal doc) {
+            @RequestBody DocumentoPersonalRequestDTO dto) {
+
+        DocumentoPersonal doc = new DocumentoPersonal();
+        doc.setTipoDocumento(dto.getTipoDocumento());
+        doc.setValor(dto.getValor());
+        doc.setFechaVencimiento(dto.getFechaVencimiento());
 
         return service.guardar(transportistaId, doc);
     }

@@ -1,5 +1,6 @@
 package com.example.backendastramaco.controller;
 
+import com.example.backendastramaco.dto.UsuarioRequestDTO;
 import com.example.backendastramaco.model.Usuario;
 import com.example.backendastramaco.service.UsuarioService;
 import lombok.RequiredArgsConstructor;
@@ -12,11 +13,14 @@ import org.springframework.web.bind.annotation.*;
 public class UsuarioController {
 
     private final UsuarioService usuarioService;
-    private Usuario usuario;
 
     @PostMapping
-    public Usuario crear(@RequestBody Usuario usuario) {
-        this.usuario = usuario;
+    public Usuario crear(@RequestBody UsuarioRequestDTO dto) {
+        Usuario usuario = new Usuario();
+        usuario.setUsername(dto.getUsername());
+        usuario.setPassword(dto.getPassword());
+        usuario.setRol(dto.getRol());
+
         return usuarioService.crear(usuario);
     }
 }

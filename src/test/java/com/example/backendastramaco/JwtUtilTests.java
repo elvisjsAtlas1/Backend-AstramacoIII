@@ -5,6 +5,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -16,6 +17,15 @@ class JwtUtilTests {
     @BeforeEach
     void setUp() {
         jwtUtil = new JwtUtil();
+
+        ReflectionTestUtils.setField(
+                jwtUtil,
+                "jwtSecret",
+                "una_clave_muy_segura_de_al_menos_32_bytes_2026"
+        );
+        ReflectionTestUtils.setField(jwtUtil, "jwtExpirationMs", 86400000L);
+
+        jwtUtil.init();
     }
 
     @Test
