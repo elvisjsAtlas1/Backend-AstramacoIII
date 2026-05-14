@@ -10,9 +10,8 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@SpringBootTest
-@ActiveProfiles("test")
-class JwtUtilTests {
+
+class JwtUtilUnitTest {
 
     private JwtUtil jwtUtil;
 
