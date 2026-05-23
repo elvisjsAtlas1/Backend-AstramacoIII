@@ -53,7 +53,8 @@ class UsuarioServiceUnitTest {
         when(usuarioRepository.save(any(Usuario.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        doNothing().when(auditService).auditUsuario(anyLong(), anyString(), any(), any(), any());
+        // Usar any() en lugar de anyLong() porque el ID puede ser null antes de guardar
+        doNothing().when(auditService).auditUsuario(any(), anyString(), any(), any(), any());
 
         Usuario resultado = usuarioService.crear(usuario);
 
@@ -65,7 +66,7 @@ class UsuarioServiceUnitTest {
 
         verify(passwordEncoder).encode("123456");
         verify(usuarioRepository).save(any(Usuario.class));
-        verify(auditService, times(1)).auditUsuario(anyLong(), eq("CREATE"), isNull(), any(), any());
+        verify(auditService, times(1)).auditUsuario(any(), eq("CREATE"), isNull(), any(), any());
     }
 
     @Test
@@ -80,7 +81,7 @@ class UsuarioServiceUnitTest {
         when(usuarioRepository.save(any(Usuario.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        doNothing().when(auditService).auditUsuario(anyLong(), anyString(), any(), any(), any());
+        doNothing().when(auditService).auditUsuario(any(), anyString(), any(), any(), any());
 
         usuarioService.crear(usuario);
 
@@ -94,6 +95,6 @@ class UsuarioServiceUnitTest {
         assertEquals(Rol.TRANSPORTISTA, usuarioGuardado.getRol());
         assertTrue(Boolean.TRUE.equals(usuarioGuardado.getActivo()));
 
-        verify(auditService, times(1)).auditUsuario(anyLong(), eq("CREATE"), isNull(), any(), any());
+        verify(auditService, times(1)).auditUsuario(any(), eq("CREATE"), isNull(), any(), any());
     }
 }

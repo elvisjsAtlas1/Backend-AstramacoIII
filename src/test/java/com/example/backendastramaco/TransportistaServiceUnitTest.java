@@ -38,13 +38,13 @@ class TransportistaServiceUnitTest {
     private PasswordEncoder passwordEncoder;
 
     @Mock
-    private AuditService auditService;  // ← AGREGAR
+    private AuditService auditService;
 
     @Mock
-    private ObjectMapper objectMapper;  // ← AGREGAR
+    private ObjectMapper objectMapper;
 
     @Mock
-    private HttpServletRequest request;  // ← AGREGAR
+    private HttpServletRequest request;
 
     @InjectMocks
     private TransportistaService transportistaService;
@@ -77,8 +77,8 @@ class TransportistaServiceUnitTest {
         when(transportistaRepository.save(any(Transportista.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        // Mockear auditService
-        doNothing().when(auditService).auditTransportista(anyLong(), anyString(), any(), any(), any());
+        // Usar any() en lugar de anyLong() porque el ID puede ser null antes de guardar
+        doNothing().when(auditService).auditTransportista(any(), anyString(), any(), any(), any());
 
         Transportista resultado = transportistaService.crear(dto);
 
@@ -92,7 +92,7 @@ class TransportistaServiceUnitTest {
         verify(passwordEncoder).encode("12345678");
         verify(usuarioRepository).save(any(Usuario.class));
         verify(transportistaRepository).save(any(Transportista.class));
-        verify(auditService, times(1)).auditTransportista(anyLong(), eq("CREATE"), isNull(), any(), any());
+        verify(auditService, times(1)).auditTransportista(any(), eq("CREATE"), isNull(), any(), any());
     }
 
     @Test
@@ -120,13 +120,15 @@ class TransportistaServiceUnitTest {
         when(transportistaRepository.save(any(Transportista.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        doNothing().when(auditService).auditTransportista(anyLong(), anyString(), any(), any(), any());
+        doNothing().when(auditService).auditTransportista(any(), anyString(), any(), any(), any());
 
         Transportista resultado = transportistaService.crear(dto);
 
         assertNotNull(resultado);
         assertNotNull(resultado.getUsuario());
         assertEquals("juan.perez1", resultado.getUsuario().getUsername());
+
+        verify(auditService, times(1)).auditTransportista(any(), eq("CREATE"), isNull(), any(), any());
     }
 
     @Test
@@ -150,12 +152,14 @@ class TransportistaServiceUnitTest {
         when(transportistaRepository.save(any(Transportista.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        doNothing().when(auditService).auditTransportista(anyLong(), anyString(), any(), any(), any());
+        doNothing().when(auditService).auditTransportista(any(), anyString(), any(), any(), any());
 
         Transportista resultado = transportistaService.crear(dto);
 
         assertNotNull(resultado);
         assertEquals(EstadoTransportista.INACTIVO, resultado.getEstado());
+
+        verify(auditService, times(1)).auditTransportista(any(), eq("CREATE"), isNull(), any(), any());
     }
 
     @Test
