@@ -4,6 +4,9 @@ import com.example.backendastramaco.model.Usuario;
 import com.example.backendastramaco.model.enums.Rol;
 import com.example.backendastramaco.repository.UsuarioRepository;
 import com.example.backendastramaco.service.UsuarioService;
+import com.example.backendastramaco.service.audit.AuditService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -25,6 +28,15 @@ class UsuarioServiceUnitTest {
     @Mock
     private PasswordEncoder passwordEncoder;
 
+    @Mock
+    private AuditService auditService;  // ← AGREGAR
+
+    @Mock
+    private ObjectMapper objectMapper;  // ← AGREGAR
+
+    @Mock
+    private HttpServletRequest request;  // ← AGREGAR
+
     @InjectMocks
     private UsuarioService usuarioService;
 
@@ -41,6 +53,8 @@ class UsuarioServiceUnitTest {
         when(usuarioRepository.save(any(Usuario.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
+        doNothing().when(auditService).auditUsuario(anyLong(), anyString(), any(), any(), any());
+
         Usuario resultado = usuarioService.crear(usuario);
 
         assertNotNull(resultado);
@@ -51,6 +65,7 @@ class UsuarioServiceUnitTest {
 
         verify(passwordEncoder).encode("123456");
         verify(usuarioRepository).save(any(Usuario.class));
+        verify(auditService, times(1)).auditUsuario(anyLong(), eq("CREATE"), isNull(), any(), any());
     }
 
     @Test
@@ -64,6 +79,8 @@ class UsuarioServiceUnitTest {
         when(passwordEncoder.encode("abc123")).thenReturn("abc123-codificada");
         when(usuarioRepository.save(any(Usuario.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
+
+        doNothing().when(auditService).auditUsuario(anyLong(), anyString(), any(), any(), any());
 
         usuarioService.crear(usuario);
 

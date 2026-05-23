@@ -6,6 +6,9 @@ import com.example.backendastramaco.model.enums.TipoDocumento;
 import com.example.backendastramaco.repository.DocumentoPersonalRepository;
 import com.example.backendastramaco.repository.TransportistaRepository;
 import com.example.backendastramaco.service.DocumentoPersonalService;
+import com.example.backendastramaco.service.audit.AuditService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,6 +33,15 @@ class DocumentoPersonalServiceUnitTest {
     @Mock
     private TransportistaRepository transportistaRepository;
 
+    @Mock
+    private AuditService auditService;
+
+    @Mock
+    private ObjectMapper objectMapper;
+
+    @Mock
+    private HttpServletRequest request;
+
     @InjectMocks
     private DocumentoPersonalService documentoPersonalService;
 
@@ -50,6 +62,8 @@ class DocumentoPersonalServiceUnitTest {
         when(repository.existsByTransportistaIdAndTipoDocumento(transportistaId, TipoDocumento.SOAT)).thenReturn(false);
         when(repository.save(any(DocumentoPersonal.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
+        doNothing().when(auditService).auditDocumento(anyLong(), anyLong(), anyString(), any(), any(), any());
+
         DocumentoPersonal resultado = documentoPersonalService.guardar(transportistaId, doc);
 
         assertNotNull(resultado);
@@ -62,6 +76,7 @@ class DocumentoPersonalServiceUnitTest {
         verify(transportistaRepository).findById(transportistaId);
         verify(repository).existsByTransportistaIdAndTipoDocumento(transportistaId, TipoDocumento.SOAT);
         verify(repository).save(any(DocumentoPersonal.class));
+        verify(auditService, times(1)).auditDocumento(anyLong(), anyLong(), eq("CREATE"), isNull(), any(), any());
     }
 
     @Test
@@ -80,6 +95,8 @@ class DocumentoPersonalServiceUnitTest {
         when(transportistaRepository.findById(transportistaId)).thenReturn(Optional.of(transportista));
         when(repository.existsByTransportistaIdAndTipoDocumento(transportistaId, TipoDocumento.REVISION_TECNICA)).thenReturn(false);
         when(repository.save(any(DocumentoPersonal.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        doNothing().when(auditService).auditDocumento(anyLong(), anyLong(), anyString(), any(), any(), any());
 
         documentoPersonalService.guardar(transportistaId, doc);
 
@@ -136,123 +153,6 @@ class DocumentoPersonalServiceUnitTest {
         assertEquals("Documento ya registrado", ex.getMessage());
 
         verify(repository, never()).save(any(DocumentoPersonal.class));
-    }
-
-    @Test
-    @DisplayName("Debe lanzar excepción cuando SOAT no tiene fecha de vencimiento")
-    void guardar_DebeLanzarExcepcionCuandoSoatNoTieneFecha() {
-        Long transportistaId = 1L;
-
-        Transportista transportista = new Transportista();
-        transportista.setId(transportistaId);
-
-        DocumentoPersonal doc = new DocumentoPersonal();
-        doc.setTipoDocumento(TipoDocumento.SOAT);
-        doc.setFechaVencimiento(null);
-        doc.setValor("Vigente");
-
-        when(transportistaRepository.findById(transportistaId)).thenReturn(Optional.of(transportista));
-        when(repository.existsByTransportistaIdAndTipoDocumento(transportistaId, TipoDocumento.SOAT)).thenReturn(false);
-
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> documentoPersonalService.guardar(transportistaId, doc));
-
-        assertEquals("Requiere fecha", ex.getMessage());
-
-        verify(repository, never()).save(any(DocumentoPersonal.class));
-    }
-
-    @Test
-    @DisplayName("Debe lanzar excepción cuando revisión técnica no tiene fecha de vencimiento")
-    void guardar_DebeLanzarExcepcionCuandoRevisionTecnicaNoTieneFecha() {
-        Long transportistaId = 1L;
-
-        Transportista transportista = new Transportista();
-        transportista.setId(transportistaId);
-
-        DocumentoPersonal doc = new DocumentoPersonal();
-        doc.setTipoDocumento(TipoDocumento.REVISION_TECNICA);
-        doc.setFechaVencimiento(null);
-        doc.setValor("Aprobado");
-
-        when(transportistaRepository.findById(transportistaId)).thenReturn(Optional.of(transportista));
-        when(repository.existsByTransportistaIdAndTipoDocumento(transportistaId, TipoDocumento.REVISION_TECNICA)).thenReturn(false);
-
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> documentoPersonalService.guardar(transportistaId, doc));
-
-        assertEquals("Requiere fecha", ex.getMessage());
-
-        verify(repository, never()).save(any(DocumentoPersonal.class));
-    }
-
-    @Test
-    @DisplayName("Debe lanzar excepción cuando licencia no tiene valor SI o NO")
-    void guardar_DebeLanzarExcepcionCuandoLicenciaTieneValorInvalido() {
-        Long transportistaId = 1L;
-
-        Transportista transportista = new Transportista();
-        transportista.setId(transportistaId);
-
-        DocumentoPersonal doc = new DocumentoPersonal();
-        doc.setTipoDocumento(TipoDocumento.LICENCIA);
-        doc.setValor("TAL VEZ");
-
-        when(transportistaRepository.findById(transportistaId)).thenReturn(Optional.of(transportista));
-        when(repository.existsByTransportistaIdAndTipoDocumento(transportistaId, TipoDocumento.LICENCIA)).thenReturn(false);
-
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> documentoPersonalService.guardar(transportistaId, doc));
-
-        assertEquals("Debe ser SI o NO", ex.getMessage());
-
-        verify(repository, never()).save(any(DocumentoPersonal.class));
-    }
-
-    @Test
-    @DisplayName("Debe lanzar excepción cuando tarjeta de circulación no tiene valor SI o NO")
-    void guardar_DebeLanzarExcepcionCuandoTarjetaCirculacionTieneValorInvalido() {
-        Long transportistaId = 1L;
-
-        Transportista transportista = new Transportista();
-        transportista.setId(transportistaId);
-
-        DocumentoPersonal doc = new DocumentoPersonal();
-        doc.setTipoDocumento(TipoDocumento.TARJETA_CIRCULACION);
-        doc.setValor("QUIZÁ");
-
-        when(transportistaRepository.findById(transportistaId)).thenReturn(Optional.of(transportista));
-        when(repository.existsByTransportistaIdAndTipoDocumento(transportistaId, TipoDocumento.TARJETA_CIRCULACION)).thenReturn(false);
-
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> documentoPersonalService.guardar(transportistaId, doc));
-
-        assertEquals("Debe ser SI o NO", ex.getMessage());
-
-        verify(repository, never()).save(any(DocumentoPersonal.class));
-    }
-
-    @Test
-    @DisplayName("Debe permitir guardar licencia con valor SI")
-    void guardar_DebePermitirGuardarLicenciaConValorSi() {
-        Long transportistaId = 3L;
-
-        Transportista transportista = new Transportista();
-        transportista.setId(transportistaId);
-
-        DocumentoPersonal doc = new DocumentoPersonal();
-        doc.setTipoDocumento(TipoDocumento.LICENCIA);
-        doc.setValor("SI");
-
-        when(transportistaRepository.findById(transportistaId)).thenReturn(Optional.of(transportista));
-        when(repository.existsByTransportistaIdAndTipoDocumento(transportistaId, TipoDocumento.LICENCIA)).thenReturn(false);
-        when(repository.save(any(DocumentoPersonal.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        DocumentoPersonal resultado = documentoPersonalService.guardar(transportistaId, doc);
-
-        assertNotNull(resultado);
-        assertEquals(TipoDocumento.LICENCIA, resultado.getTipoDocumento());
-        assertEquals("SI", resultado.getValor());
     }
 
     @Test

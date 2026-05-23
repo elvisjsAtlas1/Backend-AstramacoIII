@@ -10,6 +10,9 @@ import com.example.backendastramaco.model.enums.TipoTransporte;
 import com.example.backendastramaco.repository.CargaRepository;
 import com.example.backendastramaco.repository.TransportistaRepository;
 import com.example.backendastramaco.service.CargaService;
+import com.example.backendastramaco.service.audit.AuditService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,6 +35,15 @@ class CargaServiceUnitTest {
     @Mock
     private TransportistaRepository transportistaRepository;
 
+    @Mock
+    private AuditService auditService;
+
+    @Mock
+    private ObjectMapper objectMapper;
+
+    @Mock
+    private HttpServletRequest request;
+
     @InjectMocks
     private CargaService cargaService;
 
@@ -46,9 +58,9 @@ class CargaServiceUnitTest {
         transportista.setApellidos("Perez");
         transportista.setTipoTransporte(TipoTransporte.CAMIONERO);
 
-        CargaRequestDTO request = new CargaRequestDTO();
-        request.setTipoMaterial(TipoMaterial.PANDERETA);
-        request.setCantidadDisponible(80.0);
+        CargaRequestDTO requestDTO = new CargaRequestDTO();
+        requestDTO.setTipoMaterial(TipoMaterial.PANDERETA);
+        requestDTO.setCantidadDisponible(80.0);
 
         when(transportistaRepository.findById(transportistaId)).thenReturn(Optional.of(transportista));
         when(cargaRepository.findByTransportistaId(transportistaId)).thenReturn(Optional.empty());
@@ -58,7 +70,9 @@ class CargaServiceUnitTest {
             return carga;
         });
 
-        CargaResponseDTO resultado = cargaService.subirCargaActual(transportistaId, request);
+        doNothing().when(auditService).auditCarga(anyLong(), anyLong(), anyString(), any(), any(), any());
+
+        CargaResponseDTO resultado = cargaService.subirCargaActual(transportistaId, requestDTO);
 
         assertNotNull(resultado);
         assertEquals(10L, resultado.getId());
@@ -66,6 +80,8 @@ class CargaServiceUnitTest {
         assertEquals("Juan Perez", resultado.getTransportistaNombre());
         assertEquals(TipoMaterial.PANDERETA, resultado.getTipoMaterial());
         assertEquals(80.0, resultado.getCantidadDisponible());
+
+        verify(auditService, times(1)).auditCarga(anyLong(), eq(transportistaId), eq("CREATE"), isNull(), any(), any());
     }
 
     @Test
@@ -85,21 +101,25 @@ class CargaServiceUnitTest {
         cargaExistente.setTipoMaterial(TipoMaterial.TECHO);
         cargaExistente.setCantidadDisponible(40.0);
 
-        CargaRequestDTO request = new CargaRequestDTO();
-        request.setTipoMaterial(TipoMaterial.PANDERETA);
-        request.setCantidadDisponible(100.0);
+        CargaRequestDTO requestDTO = new CargaRequestDTO();
+        requestDTO.setTipoMaterial(TipoMaterial.PANDERETA);
+        requestDTO.setCantidadDisponible(100.0);
 
         when(transportistaRepository.findById(transportistaId)).thenReturn(Optional.of(transportista));
         when(cargaRepository.findByTransportistaId(transportistaId)).thenReturn(Optional.of(cargaExistente));
         when(cargaRepository.save(any(Carga.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        CargaResponseDTO resultado = cargaService.subirCargaActual(transportistaId, request);
+        doNothing().when(auditService).auditCarga(anyLong(), anyLong(), anyString(), any(), any(), any());
+
+        CargaResponseDTO resultado = cargaService.subirCargaActual(transportistaId, requestDTO);
 
         assertNotNull(resultado);
         assertEquals(20L, resultado.getId());
         assertEquals(TipoMaterial.PANDERETA, resultado.getTipoMaterial());
         assertEquals(100.0, resultado.getCantidadDisponible());
         assertEquals("Luis Mamani", resultado.getTransportistaNombre());
+
+        verify(auditService, times(1)).auditCarga(anyLong(), eq(transportistaId), eq("UPDATE"), any(), any(), any());
     }
 
     @Test
@@ -107,18 +127,19 @@ class CargaServiceUnitTest {
     void subirCargaActual_DebeLanzarExcepcionCuandoTransportistaNoExiste() {
         Long transportistaId = 99L;
 
-        CargaRequestDTO request = new CargaRequestDTO();
-        request.setTipoMaterial(TipoMaterial.PANDERETA);
-        request.setCantidadDisponible(50.0);
+        CargaRequestDTO requestDTO = new CargaRequestDTO();
+        requestDTO.setTipoMaterial(TipoMaterial.PANDERETA);
+        requestDTO.setCantidadDisponible(50.0);
 
         when(transportistaRepository.findById(transportistaId)).thenReturn(Optional.empty());
 
         RuntimeException ex = assertThrows(RuntimeException.class,
-                () -> cargaService.subirCargaActual(transportistaId, request));
+                () -> cargaService.subirCargaActual(transportistaId, requestDTO));
 
         assertEquals("Transportista no existe", ex.getMessage());
 
         verify(cargaRepository, never()).save(any(Carga.class));
+        verify(auditService, never()).auditCarga(anyLong(), anyLong(), anyString(), any(), any(), any());
     }
 
     @Test
@@ -130,18 +151,19 @@ class CargaServiceUnitTest {
         transportista.setId(transportistaId);
         transportista.setTipoTransporte(TipoTransporte.VOLQUETERO);
 
-        CargaRequestDTO request = new CargaRequestDTO();
-        request.setTipoMaterial(TipoMaterial.PANDERETA);
-        request.setCantidadDisponible(50.0);
+        CargaRequestDTO requestDTO = new CargaRequestDTO();
+        requestDTO.setTipoMaterial(TipoMaterial.PANDERETA);
+        requestDTO.setCantidadDisponible(50.0);
 
         when(transportistaRepository.findById(transportistaId)).thenReturn(Optional.of(transportista));
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> cargaService.subirCargaActual(transportistaId, request));
+                () -> cargaService.subirCargaActual(transportistaId, requestDTO));
 
         assertEquals("Solo los transportistas CAMIONERO pueden manejar carga", ex.getMessage());
 
         verify(cargaRepository, never()).save(any(Carga.class));
+        verify(auditService, never()).auditCarga(anyLong(), anyLong(), anyString(), any(), any(), any());
     }
 
     @Test
@@ -153,18 +175,19 @@ class CargaServiceUnitTest {
         transportista.setId(transportistaId);
         transportista.setTipoTransporte(TipoTransporte.CAMIONERO);
 
-        CargaRequestDTO request = new CargaRequestDTO();
-        request.setTipoMaterial(TipoMaterial.PIEDRA);
-        request.setCantidadDisponible(30.0);
+        CargaRequestDTO requestDTO = new CargaRequestDTO();
+        requestDTO.setTipoMaterial(TipoMaterial.PIEDRA);
+        requestDTO.setCantidadDisponible(30.0);
 
         when(transportistaRepository.findById(transportistaId)).thenReturn(Optional.of(transportista));
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> cargaService.subirCargaActual(transportistaId, request));
+                () -> cargaService.subirCargaActual(transportistaId, requestDTO));
 
         assertEquals("El transportista CAMIONERO solo puede registrar PANDERETA o TECHO", ex.getMessage());
 
         verify(cargaRepository, never()).save(any(Carga.class));
+        verify(auditService, never()).auditCarga(anyLong(), anyLong(), anyString(), any(), any(), any());
     }
 
     @Test
@@ -184,20 +207,24 @@ class CargaServiceUnitTest {
         carga.setTipoMaterial(TipoMaterial.PANDERETA);
         carga.setCantidadDisponible(70.0);
 
-        AumentarCargaRequestDTO request = new AumentarCargaRequestDTO();
-        request.setTipoMaterial(TipoMaterial.PANDERETA);
-        request.setCantidadAgregar(25.0);
+        AumentarCargaRequestDTO requestDTO = new AumentarCargaRequestDTO();
+        requestDTO.setTipoMaterial(TipoMaterial.PANDERETA);
+        requestDTO.setCantidadAgregar(25.0);
 
         when(transportistaRepository.findById(transportistaId)).thenReturn(Optional.of(transportista));
         when(cargaRepository.findByTransportistaId(transportistaId)).thenReturn(Optional.of(carga));
         when(cargaRepository.save(any(Carga.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        CargaResponseDTO resultado = cargaService.aumentarCargaActual(transportistaId, request);
+        doNothing().when(auditService).auditCarga(anyLong(), anyLong(), anyString(), any(), any(), any());
+
+        CargaResponseDTO resultado = cargaService.aumentarCargaActual(transportistaId, requestDTO);
 
         assertNotNull(resultado);
         assertEquals(95.0, resultado.getCantidadDisponible());
         assertEquals(TipoMaterial.PANDERETA, resultado.getTipoMaterial());
         assertEquals("Mario Quispe", resultado.getTransportistaNombre());
+
+        verify(auditService, times(1)).auditCarga(anyLong(), eq(transportistaId), eq("UPDATE"), any(), any(), any());
     }
 
     @Test
@@ -209,19 +236,20 @@ class CargaServiceUnitTest {
         transportista.setId(transportistaId);
         transportista.setTipoTransporte(TipoTransporte.CAMIONERO);
 
-        AumentarCargaRequestDTO request = new AumentarCargaRequestDTO();
-        request.setTipoMaterial(TipoMaterial.PANDERETA);
-        request.setCantidadAgregar(20.0);
+        AumentarCargaRequestDTO requestDTO = new AumentarCargaRequestDTO();
+        requestDTO.setTipoMaterial(TipoMaterial.PANDERETA);
+        requestDTO.setCantidadAgregar(20.0);
 
         when(transportistaRepository.findById(transportistaId)).thenReturn(Optional.of(transportista));
         when(cargaRepository.findByTransportistaId(transportistaId)).thenReturn(Optional.empty());
 
         RuntimeException ex = assertThrows(RuntimeException.class,
-                () -> cargaService.aumentarCargaActual(transportistaId, request));
+                () -> cargaService.aumentarCargaActual(transportistaId, requestDTO));
 
         assertEquals("El transportista no tiene carga registrada", ex.getMessage());
 
         verify(cargaRepository, never()).save(any(Carga.class));
+        verify(auditService, never()).auditCarga(anyLong(), anyLong(), anyString(), any(), any(), any());
     }
 
     @Test
@@ -238,19 +266,20 @@ class CargaServiceUnitTest {
         carga.setTipoMaterial(TipoMaterial.TECHO);
         carga.setCantidadDisponible(60.0);
 
-        AumentarCargaRequestDTO request = new AumentarCargaRequestDTO();
-        request.setTipoMaterial(TipoMaterial.PANDERETA);
-        request.setCantidadAgregar(10.0);
+        AumentarCargaRequestDTO requestDTO = new AumentarCargaRequestDTO();
+        requestDTO.setTipoMaterial(TipoMaterial.PANDERETA);
+        requestDTO.setCantidadAgregar(10.0);
 
         when(transportistaRepository.findById(transportistaId)).thenReturn(Optional.of(transportista));
         when(cargaRepository.findByTransportistaId(transportistaId)).thenReturn(Optional.of(carga));
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> cargaService.aumentarCargaActual(transportistaId, request));
+                () -> cargaService.aumentarCargaActual(transportistaId, requestDTO));
 
         assertEquals("Solo se puede aumentar si el material es el mismo que la carga actual", ex.getMessage());
 
         verify(cargaRepository, never()).save(any(Carga.class));
+        verify(auditService, never()).auditCarga(anyLong(), anyLong(), anyString(), any(), any(), any());
     }
 
     @Test

@@ -11,6 +11,9 @@ import com.example.backendastramaco.repository.CargaRepository;
 import com.example.backendastramaco.repository.PedidoRepository;
 import com.example.backendastramaco.repository.TransportistaRepository;
 import com.example.backendastramaco.service.PedidoService;
+import com.example.backendastramaco.service.audit.AuditService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -39,12 +42,22 @@ class PedidoServiceUnitTest {
     @Mock
     private CargaRepository cargaRepository;
 
+    @Mock
+    private AuditService auditService;
+
+    @Mock
+    private ObjectMapper objectMapper;
+
+    @Mock
+    private HttpServletRequest request;
+
     @InjectMocks
     private PedidoService pedidoService;
 
     @Test
     @DisplayName("Debe crear pedido para transportista volquetero sin procesar carga")
     void crearPedido_DebeCrearPedidoVolqueteroCorrectamente() {
+        // Arrange
         PedidoRequestDTO dto = new PedidoRequestDTO();
         dto.setClienteNombre("Carlos");
         dto.setClienteTelefono("999888777");
@@ -71,8 +84,12 @@ class PedidoServiceUnitTest {
             return pedido;
         });
 
+        doNothing().when(auditService).auditPedido(anyLong(), anyString(), any(), any(), any());
+
+        // Act
         PedidoResponseDTO resultado = pedidoService.crearPedido(dto);
 
+        // Assert
         assertNotNull(resultado);
         assertEquals(10L, resultado.getId());
         assertEquals("Carlos", resultado.getClienteNombre());
@@ -93,11 +110,13 @@ class PedidoServiceUnitTest {
         verify(pedidoRepository).save(any(Pedido.class));
         verify(cargaRepository, never()).findByTransportistaId(anyLong());
         verify(cargaRepository, never()).save(any(Carga.class));
+        verify(auditService, times(1)).auditPedido(anyLong(), eq("CREATE"), isNull(), any(), any());
     }
 
     @Test
     @DisplayName("Debe crear pedido camionero y descontar stock de la carga")
     void crearPedido_DebeCrearPedidoCamioneroYDescontarCarga() {
+        // Arrange
         PedidoRequestDTO dto = new PedidoRequestDTO();
         dto.setClienteNombre("Maria");
         dto.setClienteTelefono("999111222");
@@ -132,8 +151,12 @@ class PedidoServiceUnitTest {
             return pedido;
         });
 
+        doNothing().when(auditService).auditPedido(anyLong(), anyString(), any(), any(), any());
+
+        // Act
         PedidoResponseDTO resultado = pedidoService.crearPedido(dto);
 
+        // Assert
         assertNotNull(resultado);
         assertEquals(20L, resultado.getId());
         assertEquals("Juan Perez", resultado.getTransportistaNombre());
@@ -146,16 +169,19 @@ class PedidoServiceUnitTest {
         assertEquals(80.0, cargaActualizada.getCantidadDisponible());
 
         verify(pedidoRepository).save(any(Pedido.class));
+        verify(auditService, times(1)).auditPedido(anyLong(), eq("CREATE"), isNull(), any(), any());
     }
 
     @Test
     @DisplayName("Debe lanzar excepción cuando no se encuentra el transportista")
     void crearPedido_DebeLanzarExcepcionCuandoTransportistaNoExiste() {
+        // Arrange
         PedidoRequestDTO dto = new PedidoRequestDTO();
         dto.setTransportistaId(99L);
 
         when(transportistaRepository.findById(99L)).thenReturn(Optional.empty());
 
+        // Act & Assert
         RuntimeException ex = assertThrows(RuntimeException.class,
                 () -> pedidoService.crearPedido(dto));
 
@@ -163,11 +189,13 @@ class PedidoServiceUnitTest {
 
         verify(pedidoRepository, never()).save(any(Pedido.class));
         verify(cargaRepository, never()).save(any(Carga.class));
+        verify(auditService, never()).auditPedido(anyLong(), anyString(), any(), any(), any());
     }
 
     @Test
     @DisplayName("Debe lanzar excepción cuando el tipo de transporte no coincide")
     void crearPedido_DebeLanzarExcepcionCuandoTipoNoCoincide() {
+        // Arrange
         PedidoRequestDTO dto = new PedidoRequestDTO();
         dto.setTransportistaId(1L);
         dto.setTipoTransporte(TipoTransporte.CAMIONERO);
@@ -178,18 +206,20 @@ class PedidoServiceUnitTest {
 
         when(transportistaRepository.findById(1L)).thenReturn(Optional.of(transportista));
 
+        // Act & Assert
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> pedidoService.crearPedido(dto));
 
         assertEquals("El tipo de transporte del pedido no coincide con el transportista seleccionado", ex.getMessage());
 
         verify(pedidoRepository, never()).save(any(Pedido.class));
+        verify(auditService, never()).auditPedido(anyLong(), anyString(), any(), any(), any());
     }
 
     @Test
     @DisplayName("Debe lanzar excepción cuando camionero usa material no permitido")
     void crearPedido_DebeLanzarExcepcionCuandoMaterialCamioneroEsInvalido() {
-
+        // Arrange
         PedidoRequestDTO dto = new PedidoRequestDTO();
         dto.setTransportistaId(2L);
         dto.setTipoTransporte(TipoTransporte.CAMIONERO);
@@ -200,9 +230,9 @@ class PedidoServiceUnitTest {
         ReflectionTestUtils.setField(transportista, "id", 2L);
         transportista.setTipoTransporte(TipoTransporte.CAMIONERO);
 
-        when(transportistaRepository.findById(2L))
-                .thenReturn(Optional.of(transportista));
+        when(transportistaRepository.findById(2L)).thenReturn(Optional.of(transportista));
 
+        // Act & Assert
         IllegalArgumentException ex = assertThrows(
                 IllegalArgumentException.class,
                 () -> pedidoService.crearPedido(dto)
@@ -212,11 +242,14 @@ class PedidoServiceUnitTest {
                 "El transportista camionero solo puede trabajar con materiales PANDERETA o TECHO",
                 ex.getMessage()
         );
+
+        verify(auditService, never()).auditPedido(anyLong(), anyString(), any(), any(), any());
     }
 
     @Test
     @DisplayName("Debe lanzar excepción cuando el camionero no tiene carga registrada")
     void crearPedido_DebeLanzarExcepcionCuandoNoTieneCargaRegistrada() {
+        // Arrange
         PedidoRequestDTO dto = new PedidoRequestDTO();
         dto.setTransportistaId(2L);
         dto.setTipoTransporte(TipoTransporte.CAMIONERO);
@@ -230,17 +263,20 @@ class PedidoServiceUnitTest {
         when(transportistaRepository.findById(2L)).thenReturn(Optional.of(transportista));
         when(cargaRepository.findByTransportistaId(2L)).thenReturn(Optional.empty());
 
+        // Act & Assert
         RuntimeException ex = assertThrows(RuntimeException.class,
                 () -> pedidoService.crearPedido(dto));
 
         assertEquals("El transportista no tiene carga registrada", ex.getMessage());
 
         verify(pedidoRepository, never()).save(any(Pedido.class));
+        verify(auditService, never()).auditPedido(anyLong(), anyString(), any(), any(), any());
     }
 
     @Test
     @DisplayName("Debe lanzar excepción cuando el material de la carga no coincide")
     void crearPedido_DebeLanzarExcepcionCuandoMaterialNoCoincideConCarga() {
+        // Arrange
         PedidoRequestDTO dto = new PedidoRequestDTO();
         dto.setTransportistaId(2L);
         dto.setTipoTransporte(TipoTransporte.CAMIONERO);
@@ -258,6 +294,7 @@ class PedidoServiceUnitTest {
         when(transportistaRepository.findById(2L)).thenReturn(Optional.of(transportista));
         when(cargaRepository.findByTransportistaId(2L)).thenReturn(Optional.of(carga));
 
+        // Act & Assert
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> pedidoService.crearPedido(dto));
 
@@ -265,11 +302,13 @@ class PedidoServiceUnitTest {
 
         verify(pedidoRepository, never()).save(any(Pedido.class));
         verify(cargaRepository, never()).save(any(Carga.class));
+        verify(auditService, never()).auditPedido(anyLong(), anyString(), any(), any(), any());
     }
 
     @Test
     @DisplayName("Debe lanzar excepción cuando el stock es insuficiente")
     void crearPedido_DebeLanzarExcepcionCuandoStockEsInsuficiente() {
+        // Arrange
         PedidoRequestDTO dto = new PedidoRequestDTO();
         dto.setTransportistaId(2L);
         dto.setTipoTransporte(TipoTransporte.CAMIONERO);
@@ -287,6 +326,7 @@ class PedidoServiceUnitTest {
         when(transportistaRepository.findById(2L)).thenReturn(Optional.of(transportista));
         when(cargaRepository.findByTransportistaId(2L)).thenReturn(Optional.of(carga));
 
+        // Act & Assert
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> pedidoService.crearPedido(dto));
 
@@ -294,11 +334,13 @@ class PedidoServiceUnitTest {
 
         verify(pedidoRepository, never()).save(any(Pedido.class));
         verify(cargaRepository, never()).save(any(Carga.class));
+        verify(auditService, never()).auditPedido(anyLong(), anyString(), any(), any(), any());
     }
 
     @Test
     @DisplayName("Debe listar pedidos convertidos a response DTO")
     void listar_DebeRetornarPedidosConvertidosADto() {
+        // Arrange
         Transportista transportista = new Transportista();
         ReflectionTestUtils.setField(transportista, "id", 3L);
         transportista.setNombre("Pedro");
@@ -338,8 +380,10 @@ class PedidoServiceUnitTest {
 
         when(pedidoRepository.findAll()).thenReturn(List.of(pedido1, pedido2));
 
+        // Act
         List<PedidoResponseDTO> resultado = pedidoService.listar();
 
+        // Assert
         assertNotNull(resultado);
         assertEquals(2, resultado.size());
         assertEquals(1L, resultado.get(0).getId());
@@ -355,6 +399,7 @@ class PedidoServiceUnitTest {
     @Test
     @DisplayName("Debe listar pedidos por transportista ordenados por hora de envío")
     void listarPorTransportista_DebeRetornarPedidosDelTransportista() {
+        // Arrange
         Transportista transportista = new Transportista();
         ReflectionTestUtils.setField(transportista, "id", 4L);
         transportista.setNombre("Rene");
@@ -379,8 +424,10 @@ class PedidoServiceUnitTest {
         when(pedidoRepository.findByTransportistaIdOrderByHoraEnvioDesc(4L))
                 .thenReturn(List.of(pedido));
 
+        // Act
         List<PedidoResponseDTO> resultado = pedidoService.listarPorTransportista(4L);
 
+        // Assert
         assertNotNull(resultado);
         assertEquals(1, resultado.size());
         assertEquals(7L, resultado.get(0).getId());
@@ -393,6 +440,7 @@ class PedidoServiceUnitTest {
     @Test
     @DisplayName("Debe retornar nombre completo vacío limpio cuando transportista no tiene apellidos o nombre completos")
     void listar_DebeMapearNombreCompletoSinEspaciosExtra() {
+        // Arrange
         Transportista transportista = new Transportista();
         ReflectionTestUtils.setField(transportista, "id", 8L);
         transportista.setNombre("  Joel ");
@@ -416,8 +464,10 @@ class PedidoServiceUnitTest {
 
         when(pedidoRepository.findAll()).thenReturn(List.of(pedido));
 
+        // Act
         List<PedidoResponseDTO> resultado = pedidoService.listar();
 
+        // Assert
         assertEquals(1, resultado.size());
         assertEquals("Joel", resultado.get(0).getTransportistaNombre());
     }

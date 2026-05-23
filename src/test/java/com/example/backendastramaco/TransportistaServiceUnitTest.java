@@ -9,6 +9,9 @@ import com.example.backendastramaco.model.enums.TipoTransporte;
 import com.example.backendastramaco.repository.TransportistaRepository;
 import com.example.backendastramaco.repository.UsuarioRepository;
 import com.example.backendastramaco.service.TransportistaService;
+import com.example.backendastramaco.service.audit.AuditService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -33,6 +36,15 @@ class TransportistaServiceUnitTest {
 
     @Mock
     private PasswordEncoder passwordEncoder;
+
+    @Mock
+    private AuditService auditService;  // ← AGREGAR
+
+    @Mock
+    private ObjectMapper objectMapper;  // ← AGREGAR
+
+    @Mock
+    private HttpServletRequest request;  // ← AGREGAR
 
     @InjectMocks
     private TransportistaService transportistaService;
@@ -65,6 +77,9 @@ class TransportistaServiceUnitTest {
         when(transportistaRepository.save(any(Transportista.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
+        // Mockear auditService
+        doNothing().when(auditService).auditTransportista(anyLong(), anyString(), any(), any(), any());
+
         Transportista resultado = transportistaService.crear(dto);
 
         assertNotNull(resultado);
@@ -77,6 +92,7 @@ class TransportistaServiceUnitTest {
         verify(passwordEncoder).encode("12345678");
         verify(usuarioRepository).save(any(Usuario.class));
         verify(transportistaRepository).save(any(Transportista.class));
+        verify(auditService, times(1)).auditTransportista(anyLong(), eq("CREATE"), isNull(), any(), any());
     }
 
     @Test
@@ -103,6 +119,8 @@ class TransportistaServiceUnitTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
         when(transportistaRepository.save(any(Transportista.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
+
+        doNothing().when(auditService).auditTransportista(anyLong(), anyString(), any(), any(), any());
 
         Transportista resultado = transportistaService.crear(dto);
 
@@ -131,6 +149,8 @@ class TransportistaServiceUnitTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
         when(transportistaRepository.save(any(Transportista.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
+
+        doNothing().when(auditService).auditTransportista(anyLong(), anyString(), any(), any(), any());
 
         Transportista resultado = transportistaService.crear(dto);
 
