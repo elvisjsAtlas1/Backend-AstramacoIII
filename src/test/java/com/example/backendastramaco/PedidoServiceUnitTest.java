@@ -18,6 +18,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -58,7 +59,7 @@ class PedidoServiceUnitTest {
         dto.setTransportistaId(1L);
 
         Transportista transportista = new Transportista();
-        transportista.setId(1L);
+        ReflectionTestUtils.setField(transportista, "id", 1L);
         transportista.setNombre("Luis");
         transportista.setApellidos("Quispe");
         transportista.setTipoTransporte(TipoTransporte.VOLQUETERO);
@@ -66,7 +67,7 @@ class PedidoServiceUnitTest {
         when(transportistaRepository.findById(1L)).thenReturn(Optional.of(transportista));
         when(pedidoRepository.save(any(Pedido.class))).thenAnswer(invocation -> {
             Pedido pedido = invocation.getArgument(0);
-            pedido.setId(10L);
+            ReflectionTestUtils.setField(pedido, "id", 10L);
             return pedido;
         });
 
@@ -111,13 +112,13 @@ class PedidoServiceUnitTest {
         dto.setTransportistaId(2L);
 
         Transportista transportista = new Transportista();
-        transportista.setId(2L);
+        ReflectionTestUtils.setField(transportista, "id", 2L);
         transportista.setNombre("Juan");
         transportista.setApellidos("Perez");
         transportista.setTipoTransporte(TipoTransporte.CAMIONERO);
 
         Carga carga = new Carga();
-        carga.setId(5L);
+        ReflectionTestUtils.setField(carga, "id", 5L);
         carga.setTipoMaterial(TipoMaterial.PANDERETA);
         carga.setCantidadDisponible(100.0);
         carga.setTransportista(transportista);
@@ -127,7 +128,7 @@ class PedidoServiceUnitTest {
         when(cargaRepository.save(any(Carga.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(pedidoRepository.save(any(Pedido.class))).thenAnswer(invocation -> {
             Pedido pedido = invocation.getArgument(0);
-            pedido.setId(20L);
+            ReflectionTestUtils.setField(pedido, "id", 20L);
             return pedido;
         });
 
@@ -172,7 +173,7 @@ class PedidoServiceUnitTest {
         dto.setTipoTransporte(TipoTransporte.CAMIONERO);
 
         Transportista transportista = new Transportista();
-        transportista.setId(1L);
+        ReflectionTestUtils.setField(transportista, "id", 1L);
         transportista.setTipoTransporte(TipoTransporte.VOLQUETERO);
 
         when(transportistaRepository.findById(1L)).thenReturn(Optional.of(transportista));
@@ -192,11 +193,11 @@ class PedidoServiceUnitTest {
         PedidoRequestDTO dto = new PedidoRequestDTO();
         dto.setTransportistaId(2L);
         dto.setTipoTransporte(TipoTransporte.CAMIONERO);
-        dto.setMaterial(TipoMaterial.ARENA_FINA); // ❌ inválido
+        dto.setMaterial(TipoMaterial.ARENA_FINA);
         dto.setCantidad(10.0);
 
         Transportista transportista = new Transportista();
-        transportista.setId(2L);
+        ReflectionTestUtils.setField(transportista, "id", 2L);
         transportista.setTipoTransporte(TipoTransporte.CAMIONERO);
 
         when(transportistaRepository.findById(2L))
@@ -223,7 +224,7 @@ class PedidoServiceUnitTest {
         dto.setCantidad(10.0);
 
         Transportista transportista = new Transportista();
-        transportista.setId(2L);
+        ReflectionTestUtils.setField(transportista, "id", 2L);
         transportista.setTipoTransporte(TipoTransporte.CAMIONERO);
 
         when(transportistaRepository.findById(2L)).thenReturn(Optional.of(transportista));
@@ -247,7 +248,7 @@ class PedidoServiceUnitTest {
         dto.setCantidad(10.0);
 
         Transportista transportista = new Transportista();
-        transportista.setId(2L);
+        ReflectionTestUtils.setField(transportista, "id", 2L);
         transportista.setTipoTransporte(TipoTransporte.CAMIONERO);
 
         Carga carga = new Carga();
@@ -276,7 +277,7 @@ class PedidoServiceUnitTest {
         dto.setCantidad(60.0);
 
         Transportista transportista = new Transportista();
-        transportista.setId(2L);
+        ReflectionTestUtils.setField(transportista, "id", 2L);
         transportista.setTipoTransporte(TipoTransporte.CAMIONERO);
 
         Carga carga = new Carga();
@@ -299,12 +300,11 @@ class PedidoServiceUnitTest {
     @DisplayName("Debe listar pedidos convertidos a response DTO")
     void listar_DebeRetornarPedidosConvertidosADto() {
         Transportista transportista = new Transportista();
-        transportista.setId(3L);
+        ReflectionTestUtils.setField(transportista, "id", 3L);
         transportista.setNombre("Pedro");
         transportista.setApellidos("Mamani");
 
         Pedido pedido1 = Pedido.builder()
-                .id(1L)
                 .clienteNombre("Cliente 1")
                 .clienteTelefono("111111111")
                 .direccionEnvio("Dir 1")
@@ -318,9 +318,9 @@ class PedidoServiceUnitTest {
                 .transportista(transportista)
                 .codigoVerificacion("1234")
                 .build();
+        ReflectionTestUtils.setField(pedido1, "id", 1L);
 
         Pedido pedido2 = Pedido.builder()
-                .id(2L)
                 .clienteNombre("Cliente 2")
                 .clienteTelefono("222222222")
                 .direccionEnvio("Dir 2")
@@ -334,6 +334,7 @@ class PedidoServiceUnitTest {
                 .transportista(transportista)
                 .codigoVerificacion("5678")
                 .build();
+        ReflectionTestUtils.setField(pedido2, "id", 2L);
 
         when(pedidoRepository.findAll()).thenReturn(List.of(pedido1, pedido2));
 
@@ -341,8 +342,10 @@ class PedidoServiceUnitTest {
 
         assertNotNull(resultado);
         assertEquals(2, resultado.size());
+        assertEquals(1L, resultado.get(0).getId());
         assertEquals("Cliente 1", resultado.get(0).getClienteNombre());
         assertEquals("Pedro Mamani", resultado.get(0).getTransportistaNombre());
+        assertEquals(2L, resultado.get(1).getId());
         assertEquals("Cliente 2", resultado.get(1).getClienteNombre());
         assertEquals("Pedro Mamani", resultado.get(1).getTransportistaNombre());
 
@@ -353,12 +356,11 @@ class PedidoServiceUnitTest {
     @DisplayName("Debe listar pedidos por transportista ordenados por hora de envío")
     void listarPorTransportista_DebeRetornarPedidosDelTransportista() {
         Transportista transportista = new Transportista();
-        transportista.setId(4L);
+        ReflectionTestUtils.setField(transportista, "id", 4L);
         transportista.setNombre("Rene");
         transportista.setApellidos("Flores");
 
         Pedido pedido = Pedido.builder()
-                .id(7L)
                 .clienteNombre("Lucia")
                 .clienteTelefono("987654321")
                 .direccionEnvio("Av. Siempre Viva")
@@ -372,6 +374,7 @@ class PedidoServiceUnitTest {
                 .transportista(transportista)
                 .codigoVerificacion("1234")
                 .build();
+        ReflectionTestUtils.setField(pedido, "id", 7L);
 
         when(pedidoRepository.findByTransportistaIdOrderByHoraEnvioDesc(4L))
                 .thenReturn(List.of(pedido));
@@ -391,12 +394,11 @@ class PedidoServiceUnitTest {
     @DisplayName("Debe retornar nombre completo vacío limpio cuando transportista no tiene apellidos o nombre completos")
     void listar_DebeMapearNombreCompletoSinEspaciosExtra() {
         Transportista transportista = new Transportista();
-        transportista.setId(8L);
+        ReflectionTestUtils.setField(transportista, "id", 8L);
         transportista.setNombre("  Joel ");
         transportista.setApellidos(" ");
 
         Pedido pedido = Pedido.builder()
-                .id(9L)
                 .clienteNombre("Mario")
                 .clienteTelefono("999999999")
                 .direccionEnvio("Jr. Sol")
@@ -410,6 +412,7 @@ class PedidoServiceUnitTest {
                 .transportista(transportista)
                 .codigoVerificacion("2222")
                 .build();
+        ReflectionTestUtils.setField(pedido, "id", 9L);
 
         when(pedidoRepository.findAll()).thenReturn(List.of(pedido));
 

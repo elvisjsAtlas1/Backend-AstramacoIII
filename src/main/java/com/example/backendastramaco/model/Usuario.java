@@ -1,5 +1,6 @@
 package com.example.backendastramaco.model;
 
+import com.example.backendastramaco.model.audit.BaseEntity;
 import com.example.backendastramaco.model.enums.Rol;
 import jakarta.persistence.*;
 import lombok.*;
@@ -11,11 +12,9 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Usuario {
+public class Usuario extends BaseEntity {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    //id eliminado porque esta en BaseEntity
 
     @Column(nullable = false, unique = true, length = 50)
     private String username;

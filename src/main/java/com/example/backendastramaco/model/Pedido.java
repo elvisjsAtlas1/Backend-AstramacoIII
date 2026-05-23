@@ -1,5 +1,6 @@
 package com.example.backendastramaco.model;
 
+import com.example.backendastramaco.model.audit.BaseEntity;
 import com.example.backendastramaco.model.enums.EstadoPedido;
 import com.example.backendastramaco.model.enums.TipoMaterial;
 import com.example.backendastramaco.model.enums.TipoTransporte;
@@ -11,11 +12,9 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "pedidos")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
-public class Pedido {
+public class Pedido extends BaseEntity {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    //eliminado esta en BaseEntity
 
     private String clienteNombre;
     private String clienteTelefono;

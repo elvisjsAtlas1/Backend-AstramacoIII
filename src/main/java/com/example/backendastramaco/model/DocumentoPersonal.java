@@ -1,5 +1,6 @@
 package com.example.backendastramaco.model;
 
+import com.example.backendastramaco.model.audit.BaseEntity;
 import com.example.backendastramaco.model.enums.TipoDocumento;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
@@ -14,11 +15,9 @@ import java.time.LocalDate;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class DocumentoPersonal {
+public class DocumentoPersonal extends BaseEntity {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    //eliminado esta en baseEntity
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

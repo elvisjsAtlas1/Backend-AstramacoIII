@@ -10,6 +10,9 @@ import com.example.backendastramaco.model.enums.TipoTransporte;
 import com.example.backendastramaco.repository.CargaRepository;
 import com.example.backendastramaco.repository.PedidoRepository;
 import com.example.backendastramaco.repository.TransportistaRepository;
+import com.example.backendastramaco.service.audit.AuditService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,6 +34,9 @@ public class PedidoService {
     private final PedidoRepository pedidoRepository;
     private final TransportistaRepository transportistaRepository;
     private final CargaRepository cargaRepository;
+    private final AuditService auditService;
+    private final ObjectMapper objectMapper;
+    private final HttpServletRequest request;
 
     @Transactional
     public PedidoResponseDTO crearPedido(PedidoRequestDTO dto) {
@@ -56,6 +62,16 @@ public class PedidoService {
                 .build();
 
         Pedido pedidoGuardado = pedidoRepository.save(pedido);
+
+        // Auditar creación
+        auditService.auditPedido(
+                pedidoGuardado.getId(),
+                "CREATE",
+                null,
+                pedidoGuardado,
+                request
+        );
+
         return toResponseDTO(pedidoGuardado);
     }
 
@@ -92,6 +108,7 @@ public class PedidoService {
             throw new IllegalArgumentException(STOCK_INSUFICIENTE);
         }
 
+        Double cantidadAnterior = carga.getCantidadDisponible();
         carga.setCantidadDisponible(carga.getCantidadDisponible() - dto.getCantidad());
         cargaRepository.save(carga);
     }
@@ -108,6 +125,53 @@ public class PedidoService {
                 .stream()
                 .map(this::toResponseDTO)
                 .toList();
+    }
+
+    @Transactional
+    public PedidoResponseDTO actualizarEstado(Long id, String nuevoEstado) {
+        Pedido existente = pedidoRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Pedido no encontrado"));
+
+        // Guardar copia del estado anterior
+        Pedido oldCopy = copiarEntidad(existente);
+
+        // Actualizar estado
+        existente.setEstado(com.example.backendastramaco.model.enums.EstadoPedido.valueOf(nuevoEstado));
+
+        Pedido updated = pedidoRepository.save(existente);
+
+        // Auditar actualización
+        auditService.auditPedido(
+                id,
+                "UPDATE",
+                oldCopy,
+                updated,
+                request
+        );
+
+        return toResponseDTO(updated);
+    }
+
+    @Transactional
+    public void eliminar(Long id, String username) {
+        Pedido existente = pedidoRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Pedido no encontrado"));
+
+        // Guardar copia para auditoría
+        Pedido oldCopy = copiarEntidad(existente);
+
+        // Soft delete
+        existente.softDelete(username);
+        pedidoRepository.save(existente);
+
+        // Auditar eliminación
+        auditService.auditPedido(
+                id,
+                "DELETE",
+                oldCopy,
+                null,
+                request
+        );
     }
 
     private PedidoResponseDTO toResponseDTO(Pedido pedido) {
@@ -141,5 +205,24 @@ public class PedidoService {
         String apellidos = transportista.getApellidos() != null ? transportista.getApellidos().trim() : "";
 
         return (nombre + " " + apellidos).trim();
+    }
+
+    private Pedido copiarEntidad(Pedido original) {
+        Pedido copia = new Pedido();
+        copia.setId(original.getId());
+        copia.setClienteNombre(original.getClienteNombre());
+        copia.setClienteTelefono(original.getClienteTelefono());
+        copia.setDireccionEnvio(original.getDireccionEnvio());
+        copia.setTipoTransporte(original.getTipoTransporte());
+        copia.setMaterial(original.getMaterial());
+        copia.setCantidad(original.getCantidad());
+        copia.setMontoTotal(original.getMontoTotal());
+        copia.setAdelanto(original.getAdelanto());
+        copia.setPiso(original.getPiso());
+        copia.setHoraEnvio(original.getHoraEnvio());
+        copia.setTransportista(original.getTransportista());
+        copia.setEstado(original.getEstado());
+        copia.setCodigoVerificacion(original.getCodigoVerificacion());
+        return copia;
     }
 }
