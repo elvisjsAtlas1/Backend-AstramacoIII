@@ -29,13 +29,13 @@ class UsuarioServiceUnitTest {
     private PasswordEncoder passwordEncoder;
 
     @Mock
-    private AuditService auditService;  // ← AGREGAR
+    private AuditService auditService;
 
     @Mock
-    private ObjectMapper objectMapper;  // ← AGREGAR
+    private ObjectMapper objectMapper;
 
     @Mock
-    private HttpServletRequest request;  // ← AGREGAR
+    private HttpServletRequest request;
 
     @InjectMocks
     private UsuarioService usuarioService;
@@ -93,5 +93,7 @@ class UsuarioServiceUnitTest {
         assertEquals("abc123-codificada", usuarioGuardado.getPassword());
         assertEquals(Rol.TRANSPORTISTA, usuarioGuardado.getRol());
         assertTrue(Boolean.TRUE.equals(usuarioGuardado.getActivo()));
+
+        verify(auditService, times(1)).auditUsuario(anyLong(), eq("CREATE"), isNull(), any(), any());
     }
 }
