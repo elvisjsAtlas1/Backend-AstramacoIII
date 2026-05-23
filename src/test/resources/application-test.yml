@@ -18,5 +18,5 @@ app:
     password: admin123
 
   jwt:
-    secret: MiClaveSuperSeguraParaTestingAstramaco123456
+    secret: MiClaveSuperSeguraParaTesting1234567890
     expiration-ms: 86400000
