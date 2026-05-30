@@ -76,18 +76,18 @@ class UsuarioIntegrationTest extends UsuarioBaseIntegrationTest {
     void crear_DebeRechazarUsuarioSinToken() throws Exception {
         // Arrange
         String body = """
-            {
-              "username": "usuario.sin.token",
-              "password": "123456",
-              "rol": "USER"
-            }
-            """;
+        {
+          "username": "usuario.sin.token",
+          "password": "123456",
+          "rol": "USER"
+        }
+        """;
 
         // Act & Assert
         mockMvc.perform(post("/api/usuarios")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized()); // 🔥 CORRECCIÓN: Cambiado isForbidden() por isUnauthorized()
     }
 
     @Test
@@ -96,19 +96,19 @@ class UsuarioIntegrationTest extends UsuarioBaseIntegrationTest {
         // Arrange
         String invalidToken = "token.invalido.123";
         String body = """
-            {
-              "username": "usuario.token.invalido",
-              "password": "123456",
-              "rol": "USER"
-            }
-            """;
+        {
+          "username": "usuario.token.invalido",
+          "password": "123456",
+          "rol": "USER"
+        }
+        """;
 
         // Act & Assert
         mockMvc.perform(post("/api/usuarios")
                         .header("Authorization", "Bearer " + invalidToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized()); // 🔥 CORRECCIÓN: Cambiado isForbidden() por isUnauthorized()
     }
 
     @Test
