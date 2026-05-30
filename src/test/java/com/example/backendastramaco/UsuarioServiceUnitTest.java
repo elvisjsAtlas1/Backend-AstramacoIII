@@ -62,7 +62,7 @@ class UsuarioServiceUnitTest {
         assertEquals("admin", resultado.getUsername());
         assertEquals("clave-codificada", resultado.getPassword());
         assertEquals(Rol.ADMIN, resultado.getRol());
-        assertTrue(Boolean.TRUE.equals(resultado.getActivo()));
+        assertEquals(Boolean.TRUE, resultado.getActivo());
 
         verify(passwordEncoder).encode("123456");
         verify(usuarioRepository).save(any(Usuario.class));
@@ -93,7 +93,7 @@ class UsuarioServiceUnitTest {
         assertEquals("transportista1", usuarioGuardado.getUsername());
         assertEquals("abc123-codificada", usuarioGuardado.getPassword());
         assertEquals(Rol.TRANSPORTISTA, usuarioGuardado.getRol());
-        assertTrue(Boolean.TRUE.equals(usuarioGuardado.getActivo()));
+        assertEquals(Boolean.TRUE, usuarioGuardado.getActivo());
 
         verify(auditService, times(1)).auditUsuario(any(), eq("CREATE"), isNull(), any(), any());
     }

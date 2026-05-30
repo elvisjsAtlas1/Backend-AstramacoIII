@@ -1,4 +1,4 @@
-package com.example.backendastramaco.security.swaggerConfig;
+package com.example.backendastramaco.security.swagger;
 
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;

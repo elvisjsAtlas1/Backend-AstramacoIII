@@ -8,7 +8,7 @@ export const options = {
 
 const BASE_URL = 'http://localhost:8080';
 
-export default function () {
+export default function transportistasTest () {
   const loginPayload = JSON.stringify({
     username: 'admin',
     password: 'admin123',

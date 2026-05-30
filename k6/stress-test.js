@@ -11,7 +11,7 @@ export const options = {
   ],
 };
 
-export default function () {
+export default function stressTest () {
   let res = http.get('http://localhost:8080/v3/api-docs');
 
   check(res, {

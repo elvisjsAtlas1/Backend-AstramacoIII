@@ -87,7 +87,7 @@ class TransportistaServiceUnitTest {
         assertNotNull(resultado.getUsuario());
         assertEquals("juan.perez", resultado.getUsuario().getUsername());
         assertEquals(Rol.TRANSPORTISTA, resultado.getUsuario().getRol());
-        assertTrue(Boolean.TRUE.equals(resultado.getUsuario().getActivo()));
+        assertEquals(Boolean.TRUE, resultado.getUsuario().getActivo());
 
         verify(passwordEncoder).encode("12345678");
         verify(usuarioRepository).save(any(Usuario.class));

@@ -3,15 +3,20 @@ package com.example.backendastramaco.service.audit;
 import com.example.backendastramaco.model.audit.*;
 import com.example.backendastramaco.repository.audit.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Service;
+
 import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
 public class AuditService {
+
+    private static final Logger log = LoggerFactory.getLogger(AuditService.class);
 
     private final AuditoriaUsuarioRepository auditoriaUsuarioRepo;
     private final AuditoriaTransportistaRepository auditoriaTransportistaRepo;
@@ -25,15 +30,32 @@ public class AuditService {
         try {
             return SecurityContextHolder.getContext().getAuthentication().getName();
         } catch (Exception e) {
+            log.warn("No se pudo obtener el usuario actual: {}", e.getMessage());
             return "SYSTEM";
         }
     }
 
     private String getClientIp(HttpServletRequest request) {
-        if (request == null) return "0.0.0.0";
+        if (request == null) {
+            return "0.0.0.0";
+        }
         String xfHeader = request.getHeader("X-Forwarded-For");
-        if (xfHeader == null) return request.getRemoteAddr();
+        if (xfHeader == null) {
+            return request.getRemoteAddr();
+        }
         return xfHeader.split(",")[0];
+    }
+
+    private String convertToJson(Object data) {
+        if (data == null) {
+            return null;
+        }
+        try {
+            return objectMapper.writeValueAsString(data);
+        } catch (Exception e) {
+            log.error("Error al convertir objeto a JSON: {}", e.getMessage());
+            return "{\"error\": \"Error de serialización\"}";
+        }
     }
 
     // Auditoría para Usuarios
@@ -46,19 +68,11 @@ public class AuditService {
         audit.setUsername(getCurrentUsername());
         audit.setFechaHora(LocalDateTime.now());
         audit.setIpAddress(getClientIp(request));
-
-        if (oldData != null) {
-            try {
-                audit.setDatosCompletosAnteriores(objectMapper.writeValueAsString(oldData));
-            } catch (Exception e) {}
-        }
-        if (newData != null) {
-            try {
-                audit.setDatosCompletosNuevos(objectMapper.writeValueAsString(newData));
-            } catch (Exception e) {}
-        }
+        audit.setDatosCompletosAnteriores(convertToJson(oldData));
+        audit.setDatosCompletosNuevos(convertToJson(newData));
 
         auditoriaUsuarioRepo.save(audit);
+        log.debug("Auditoría de usuario registrada - ID: {}, Acción: {}", usuarioId, accion);
     }
 
     // Auditoría para Transportistas
@@ -71,19 +85,47 @@ public class AuditService {
         audit.setUsername(getCurrentUsername());
         audit.setFechaHora(LocalDateTime.now());
         audit.setIpAddress(getClientIp(request));
+        audit.setDatosCompletosAnteriores(convertToJson(oldData));
+        audit.setDatosCompletosNuevos(convertToJson(newData));
 
-        if (oldData != null) {
-            try {
-                audit.setDatosCompletosAnteriores(objectMapper.writeValueAsString(oldData));
-            } catch (Exception e) {}
-        }
-        if (newData != null) {
-            try {
-                audit.setDatosCompletosNuevos(objectMapper.writeValueAsString(newData));
-            } catch (Exception e) {}
-        }
+        // Mapeo de campos específicos para búsquedas rápidas
+        mapTransportistaFields(audit, oldData, newData);
 
         auditoriaTransportistaRepo.save(audit);
+        log.debug("Auditoría de transportista registrada - ID: {}, Acción: {}", transportistaId, accion);
+    }
+
+    private void mapTransportistaFields(AuditoriaTransportista audit, Object oldData, Object newData) {
+        if (oldData instanceof com.example.backendastramaco.model.Transportista old) {
+            audit.setNombreAnterior(old.getNombre());
+            audit.setApellidosAnterior(old.getApellidos());
+            audit.setDniAnterior(old.getDni());
+            audit.setEdadAnterior(old.getEdad());
+            if (old.getTipoTransporte() != null) {
+                audit.setTipoTransporteAnterior(old.getTipoTransporte().name());
+            }
+            audit.setPlacaAnterior(old.getPlaca());
+            audit.setVehiculoInfoAnterior(old.getVehiculoInfo());
+            audit.setCapacidadAnterior(old.getCapacidad());
+            if (old.getEstado() != null) {
+                audit.setEstadoAnterior(old.getEstado().name());
+            }
+        }
+        if (newData instanceof com.example.backendastramaco.model.Transportista newT) {
+            audit.setNombreNuevo(newT.getNombre());
+            audit.setApellidosNuevo(newT.getApellidos());
+            audit.setDniNuevo(newT.getDni());
+            audit.setEdadNuevo(newT.getEdad());
+            if (newT.getTipoTransporte() != null) {
+                audit.setTipoTransporteNuevo(newT.getTipoTransporte().name());
+            }
+            audit.setPlacaNuevo(newT.getPlaca());
+            audit.setVehiculoInfoNuevo(newT.getVehiculoInfo());
+            audit.setCapacidadNuevo(newT.getCapacidad());
+            if (newT.getEstado() != null) {
+                audit.setEstadoNuevo(newT.getEstado().name());
+            }
+        }
     }
 
     // Auditoría para Pedidos
@@ -96,19 +138,11 @@ public class AuditService {
         audit.setUsername(getCurrentUsername());
         audit.setFechaHora(LocalDateTime.now());
         audit.setIpAddress(getClientIp(request));
-
-        if (oldData != null) {
-            try {
-                audit.setDatosCompletosAnteriores(objectMapper.writeValueAsString(oldData));
-            } catch (Exception e) {}
-        }
-        if (newData != null) {
-            try {
-                audit.setDatosCompletosNuevos(objectMapper.writeValueAsString(newData));
-            } catch (Exception e) {}
-        }
+        audit.setDatosCompletosAnteriores(convertToJson(oldData));
+        audit.setDatosCompletosNuevos(convertToJson(newData));
 
         auditoriaPedidoRepo.save(audit);
+        log.debug("Auditoría de pedido registrada - ID: {}, Acción: {}", pedidoId, accion);
     }
 
     // Auditoría para Documentos
@@ -122,19 +156,11 @@ public class AuditService {
         audit.setUsername(getCurrentUsername());
         audit.setFechaHora(LocalDateTime.now());
         audit.setIpAddress(getClientIp(request));
-
-        if (oldData != null) {
-            try {
-                audit.setDatosCompletosAnteriores(objectMapper.writeValueAsString(oldData));
-            } catch (Exception e) {}
-        }
-        if (newData != null) {
-            try {
-                audit.setDatosCompletosNuevos(objectMapper.writeValueAsString(newData));
-            } catch (Exception e) {}
-        }
+        audit.setDatosCompletosAnteriores(convertToJson(oldData));
+        audit.setDatosCompletosNuevos(convertToJson(newData));
 
         auditoriaDocumentoRepo.save(audit);
+        log.debug("Auditoría de documento registrada - ID: {}, Acción: {}", documentoId, accion);
     }
 
     // Auditoría para Cargas
@@ -148,19 +174,11 @@ public class AuditService {
         audit.setUsername(getCurrentUsername());
         audit.setFechaHora(LocalDateTime.now());
         audit.setIpAddress(getClientIp(request));
-
-        if (oldData != null) {
-            try {
-                audit.setDatosCompletosAnteriores(objectMapper.writeValueAsString(oldData));
-            } catch (Exception e) {}
-        }
-        if (newData != null) {
-            try {
-                audit.setDatosCompletosNuevos(objectMapper.writeValueAsString(newData));
-            } catch (Exception e) {}
-        }
+        audit.setDatosCompletosAnteriores(convertToJson(oldData));
+        audit.setDatosCompletosNuevos(convertToJson(newData));
 
         auditoriaCargaRepo.save(audit);
+        log.debug("Auditoría de carga registrada - ID: {}, Acción: {}", cargaId, accion);
     }
 
     // Auditoría para Autenticación
@@ -176,5 +194,7 @@ public class AuditService {
         audit.setFechaHora(LocalDateTime.now());
 
         auditoriaAuthRepo.save(audit);
+        log.debug("Auditoría de autenticación registrada - Usuario: {}, Acción: {}, Éxito: {}",
+                username, accion, exito);
     }
 }

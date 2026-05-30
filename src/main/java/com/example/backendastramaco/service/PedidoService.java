@@ -108,7 +108,6 @@ public class PedidoService {
             throw new IllegalArgumentException(STOCK_INSUFICIENTE);
         }
 
-        Double cantidadAnterior = carga.getCantidadDisponible();
         carga.setCantidadDisponible(carga.getCantidadDisponible() - dto.getCantidad());
         cargaRepository.save(carga);
     }

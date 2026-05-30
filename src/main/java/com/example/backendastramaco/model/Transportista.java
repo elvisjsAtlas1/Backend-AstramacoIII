@@ -13,11 +13,6 @@ import java.util.List;
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class Transportista extends BaseEntity {
 
-    // ❌ ELIMINAR esto porque ya está en BaseEntity
-    // @Id
-    // @GeneratedValue(strategy = GenerationType.IDENTITY)
-    // private Long id;
-
     @OneToOne
     @JoinColumn(name = "usuario_id", nullable = false, unique = true)
     private Usuario usuario;
