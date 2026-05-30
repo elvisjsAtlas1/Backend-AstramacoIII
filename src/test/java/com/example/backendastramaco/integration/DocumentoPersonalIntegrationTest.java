@@ -6,6 +6,7 @@ import com.example.backendastramaco.model.enums.TipoTransporte;
 import com.example.backendastramaco.repository.DocumentoPersonalRepository;
 import com.example.backendastramaco.service.TransportistaService;
 import jakarta.servlet.ServletException;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
@@ -67,17 +68,20 @@ class DocumentoPersonalIntegrationTest extends DocumentoPersonalBaseIntegrationT
     }
 
     @Test
+    @DisplayName("Debe registrar un documento SOAT correctamente con todas sus fechas obligatorias")
     void guardar_DebeRegistrarDocumentoSoatCorrectamente() throws Exception {
         String token = obtenerTokenAdmin();
         Transportista transportista = crearTransportista("Marco", "Apaza", "11112222", TipoTransporte.CAMIONERO);
 
+        // 🔥 CORRECCIÓN: Agregamos "fechaEmision" al JSON enviado por HTTP mockeado
         String body = """
-            {
-              "tipoDocumento": "SOAT",
-              "valor": "SOAT-2026",
-              "fechaVencimiento": "%s"
-            }
-            """.formatted(LocalDate.now().plusYears(1));
+        {
+          "tipoDocumento": "SOAT",
+          "valor": "SOAT-2026",
+          "fechaEmision": "%s",
+          "fechaVencimiento": "%s"
+        }
+        """.formatted(LocalDate.now(), LocalDate.now().plusYears(1));
 
         mockMvc.perform(post("/api/documentos/" + transportista.getId())
                         .header("Authorization", "Bearer " + token)
@@ -87,6 +91,8 @@ class DocumentoPersonalIntegrationTest extends DocumentoPersonalBaseIntegrationT
                 .andExpect(jsonPath("$.id", notNullValue()))
                 .andExpect(jsonPath("$.tipoDocumento").value("SOAT"))
                 .andExpect(jsonPath("$.valor").value("SOAT-2026"))
+                // Sinergía SonarQube: Validar que el JSON de respuesta devuelva la fecha de emisión guardada
+                .andExpect(jsonPath("$.fechaEmision").value(LocalDate.now().toString()))
                 .andExpect(jsonPath("$.activo").value(true));
 
         assertThat(documentoPersonalRepository.findByTransportistaId(transportista.getId())).hasSize(1);
