@@ -1,16 +1,14 @@
 package com.example.backendastramaco.controller;
 
+import com.example.backendastramaco.integration.UsuarioBaseIntegrationTest; // 🔥 Heredamos de tu clase base con Docker
 import com.example.backendastramaco.model.Usuario;
 import com.example.backendastramaco.model.enums.Rol;
 import com.example.backendastramaco.repository.UsuarioRepository;
-import com.example.backendastramaco.security.jwt.JwtFilter;
 import com.example.backendastramaco.security.jwt.JwtUtil;
-import com.example.backendastramaco.security.service.CustomUserDetailsService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -27,9 +25,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(AuthController.class)
 @AutoConfigureMockMvc
-class AuthControllerUnitTest {
+class AuthControllerUnitTest extends UsuarioBaseIntegrationTest { // 🔥 Cambiado aquí
 
     @Autowired
     private MockMvc mockMvc;
@@ -42,13 +39,6 @@ class AuthControllerUnitTest {
 
     @MockBean
     private UsuarioRepository usuarioRepository;
-
-    // 🔥 MOCKS CRÍTICOS PARA DESBLOQUEAR EL APPLICATION CONTEXT
-    @MockBean
-    private JwtFilter jwtFilter;
-
-    @MockBean
-    private CustomUserDetailsService customUserDetailsService;
 
     @Test
     @DisplayName("Debe ejecutar el cuerpo interno de login para cobertura de JaCoCo")
