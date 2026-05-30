@@ -1,67 +1,62 @@
 package com.example.backendastramaco.controller;
 
-import com.example.backendastramaco.integration.UsuarioBaseIntegrationTest; // 🔥 Heredamos de tu clase base con Docker
 import com.example.backendastramaco.model.Usuario;
 import com.example.backendastramaco.model.enums.Rol;
 import com.example.backendastramaco.repository.UsuarioRepository;
+import com.example.backendastramaco.security.dto.AuthRequest;
+import com.example.backendastramaco.security.dto.AuthResponse;
 import com.example.backendastramaco.security.jwt.JwtUtil;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.http.MediaType;
+import org.mockito.Mockito;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@AutoConfigureMockMvc
-class AuthControllerUnitTest extends UsuarioBaseIntegrationTest { // 🔥 Cambiado aquí
+class AuthControllerUnitTest {
 
-    @Autowired
-    private MockMvc mockMvc;
-
-    @MockBean
+    private AuthController authController;
     private AuthenticationManager authManager;
-
-    @MockBean
     private JwtUtil jwtUtil;
-
-    @MockBean
     private UsuarioRepository usuarioRepository;
 
+    @BeforeEach
+    void setUp() {
+        authManager = Mockito.mock(AuthenticationManager.class);
+        jwtUtil = Mockito.mock(JwtUtil.class);
+        usuarioRepository = Mockito.mock(UsuarioRepository.class);
+        // Instanciamos el controlador directamente pasándole los mocks por constructor
+        authController = new AuthController(authManager, jwtUtil, usuarioRepository);
+    }
+
     @Test
-    @DisplayName("Debe ejecutar el cuerpo interno de login para cobertura de JaCoCo")
-    void login_DebeEjecutarMetodoInternoCompletamente() throws Exception {
-        String username = "admin";
-        String password = "admin123";
-        String requestBody = String.format("{\"username\":\"%s\",\"password\":\"%s\"}", username, password);
+    @DisplayName("Debe ejecutar el cuerpo interno de login para cobertura de JaCoCo sin levantar Spring")
+    void login_DebeEjecutarMetodoInternoCompletamente() {
+        // Arrange
+        AuthRequest request = new AuthRequest();
+        request.setUsername("admin");
+        request.setPassword("admin123");
 
         Usuario usuarioSimulado = new Usuario();
-        usuarioSimulado.setUsername(username);
+        usuarioSimulado.setUsername("admin");
         usuarioSimulado.setRol(Rol.ADMIN);
 
-        when(authManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
-                .thenReturn(mock(Authentication.class));
-        when(jwtUtil.generateToken(username)).thenReturn("mocked-jwt-token-2026");
-        when(usuarioRepository.findByUsername(username)).thenReturn(Optional.of(usuarioSimulado));
+        when(jwtUtil.generateToken("admin")).thenReturn("mocked-jwt-token-2026");
+        when(usuarioRepository.findByUsername("admin")).thenReturn(Optional.of(usuarioSimulado));
 
-        mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(requestBody))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.token").value("mocked-jwt-token-2026"))
-                .andExpect(jsonPath("$.username").value(username))
-                .andExpect(jsonPath("$.rol").value("ADMIN"));
+        // Act
+        AuthResponse response = authController.login(request);
+
+        // Assert - Validamos los datos para que JaCoCo marque las líneas como cubiertas
+        assertNotNull(response);
+        assertEquals("mocked-jwt-token-2026", response.getToken());
+        assertEquals("admin", response.getUsername());
+        assertEquals("ADMIN", response.getRol());
     }
 }
