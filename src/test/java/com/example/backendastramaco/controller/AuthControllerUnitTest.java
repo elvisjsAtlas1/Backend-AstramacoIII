@@ -1,11 +1,11 @@
 package com.example.backendastramaco.controller;
 
-
 import com.example.backendastramaco.model.Usuario;
 import com.example.backendastramaco.model.enums.Rol;
 import com.example.backendastramaco.repository.UsuarioRepository;
+import com.example.backendastramaco.security.jwt.JwtFilter;
 import com.example.backendastramaco.security.jwt.JwtUtil;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.example.backendastramaco.security.service.CustomUserDetailsService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,13 +43,16 @@ class AuthControllerUnitTest {
     @MockBean
     private UsuarioRepository usuarioRepository;
 
-    @Autowired
-    private ObjectMapper objectMapper;
+    // 🔥 MOCKS CRÍTICOS PARA DESBLOQUEAR EL APPLICATION CONTEXT
+    @MockBean
+    private JwtFilter jwtFilter;
+
+    @MockBean
+    private CustomUserDetailsService customUserDetailsService;
 
     @Test
     @DisplayName("Debe ejecutar el cuerpo interno de login para cobertura de JaCoCo")
     void login_DebeEjecutarMetodoInternoCompletamente() throws Exception {
-        // Arrange
         String username = "admin";
         String password = "admin123";
         String requestBody = String.format("{\"username\":\"%s\",\"password\":\"%s\"}", username, password);
@@ -58,17 +61,14 @@ class AuthControllerUnitTest {
         usuarioSimulado.setUsername(username);
         usuarioSimulado.setRol(Rol.ADMIN);
 
-        // Forzamos el comportamiento de los componentes mockeados
         when(authManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
                 .thenReturn(mock(Authentication.class));
         when(jwtUtil.generateToken(username)).thenReturn("mocked-jwt-token-2026");
         when(usuarioRepository.findByUsername(username)).thenReturn(Optional.of(usuarioSimulado));
 
-        // Act & Assert
-        // Act & Assert
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(requestBody)) // 🔥 Quitamos el .with(csrf()) que daba error en rojo
+                        .content(requestBody))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.token").value("mocked-jwt-token-2026"))
                 .andExpect(jsonPath("$.username").value(username))

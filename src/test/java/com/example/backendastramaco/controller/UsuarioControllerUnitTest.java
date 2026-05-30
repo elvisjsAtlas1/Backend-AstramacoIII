@@ -4,6 +4,8 @@ import com.example.backendastramaco.dto.UsuarioRequestDTO;
 import com.example.backendastramaco.model.Usuario;
 import com.example.backendastramaco.model.enums.Rol;
 import com.example.backendastramaco.service.UsuarioService;
+import com.example.backendastramaco.security.jwt.JwtFilter;
+import com.example.backendastramaco.security.service.CustomUserDetailsService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -30,14 +32,20 @@ class UsuarioControllerUnitTest {
     @MockBean
     private UsuarioService usuarioService;
 
+    // 🔥 MOCKS CRÍTICOS PARA DESBLOQUEAR EL APPLICATION CONTEXT
+    @MockBean
+    private JwtFilter jwtFilter;
+
+    @MockBean
+    private CustomUserDetailsService customUserDetailsService;
+
     @Autowired
     private ObjectMapper objectMapper;
 
     @Test
-    @WithMockUser(roles = "ADMIN") // Simula el rol requerido para superar el filtro de SecurityConfig
+    @WithMockUser(roles = "ADMIN")
     @DisplayName("Debe invocar el método crear del controlador y cubrir las asignaciones en JaCoCo")
     void crear_DebePasarPorLasLineasDelControllerCompletamente() throws Exception {
-        // Arrange
         UsuarioRequestDTO dto = new UsuarioRequestDTO();
         dto.setUsername("carlos.qa");
         dto.setPassword("passwordSecure123");
@@ -48,8 +56,6 @@ class UsuarioControllerUnitTest {
 
         when(usuarioService.crear(any(Usuario.class))).thenReturn(usuarioEsperado);
 
-        // Act & Assert
-        // Omitimos .with(csrf()) debido a que la protección CSRF está explícitamente deshabilitada en la API
         mockMvc.perform(post("/api/usuarios")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto)))
