@@ -27,5 +27,8 @@ jobs:
       - name: Grant execute permission for Maven Wrapper
         run: chmod +x mvnw
 
-      - name: Run Unit Tests
-        run: ./mvnw test -Dtest=*UnitTest
+      - name: Run Tests
+        run: ./mvnw test
+        env:
+          APP_JWT_SECRET: 0123456789ABCDEF0123456789ABCDEF
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}

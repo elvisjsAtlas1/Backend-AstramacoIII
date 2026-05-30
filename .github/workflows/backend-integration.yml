@@ -28,4 +28,7 @@ jobs:
         run: chmod +x mvnw
 
       - name: Run Integration Tests
-        run: ./mvnw verify -Dtest=*IntegrationTest
+        run: ./mvnw verify
+        env:
+          APP_JWT_SECRET: 0123456789ABCDEF0123456789ABCDEF
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
