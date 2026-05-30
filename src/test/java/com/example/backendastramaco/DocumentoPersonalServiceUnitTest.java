@@ -7,7 +7,7 @@ import com.example.backendastramaco.repository.DocumentoPersonalRepository;
 import com.example.backendastramaco.repository.TransportistaRepository;
 import com.example.backendastramaco.service.DocumentoPersonalService;
 import com.example.backendastramaco.service.audit.AuditService;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.persistence.EntityNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -37,9 +37,6 @@ class DocumentoPersonalServiceUnitTest {
     private AuditService auditService;
 
     @Mock
-    private ObjectMapper objectMapper;
-
-    @Mock
     private HttpServletRequest request;
 
     @InjectMocks
@@ -55,6 +52,7 @@ class DocumentoPersonalServiceUnitTest {
 
         DocumentoPersonal doc = new DocumentoPersonal();
         doc.setTipoDocumento(TipoDocumento.SOAT);
+        doc.setFechaEmision(LocalDate.now()); // 🔥 Ajuste SonarQube: Requerido por la nueva validación
         doc.setFechaVencimiento(LocalDate.of(2026, 12, 31));
         doc.setValor("Vigente");
 
@@ -89,6 +87,7 @@ class DocumentoPersonalServiceUnitTest {
 
         DocumentoPersonal doc = new DocumentoPersonal();
         doc.setTipoDocumento(TipoDocumento.REVISION_TECNICA);
+        doc.setFechaEmision(LocalDate.now()); // 🔥 Ajuste SonarQube: Requerido por la nueva validación
         doc.setFechaVencimiento(LocalDate.of(2027, 1, 10));
         doc.setValor("Aprobado");
 
@@ -119,15 +118,18 @@ class DocumentoPersonalServiceUnitTest {
 
         DocumentoPersonal doc = new DocumentoPersonal();
         doc.setTipoDocumento(TipoDocumento.SOAT);
+        doc.setFechaEmision(LocalDate.now());
         doc.setFechaVencimiento(LocalDate.of(2026, 12, 31));
         doc.setValor("Vigente");
 
         when(transportistaRepository.findById(transportistaId)).thenReturn(Optional.empty());
 
-        RuntimeException ex = assertThrows(RuntimeException.class,
+        // 🔥 Ajuste: Cambiado RuntimeException por EntityNotFoundException
+        EntityNotFoundException ex = assertThrows(EntityNotFoundException.class,
                 () -> documentoPersonalService.guardar(transportistaId, doc));
 
-        assertEquals("Transportista no existe", ex.getMessage());
+        // 🔥 Ajuste: Mensaje sincronizado con la lógica mejorada del Service
+        assertEquals("Transportista con ID 99 no existe", ex.getMessage());
 
         verify(repository, never()).existsByTransportistaIdAndTipoDocumento(anyLong(), any());
         verify(repository, never()).save(any(DocumentoPersonal.class));
@@ -144,6 +146,7 @@ class DocumentoPersonalServiceUnitTest {
 
         DocumentoPersonal doc = new DocumentoPersonal();
         doc.setTipoDocumento(TipoDocumento.SOAT);
+        doc.setFechaEmision(LocalDate.now());
         doc.setFechaVencimiento(LocalDate.of(2026, 12, 31));
         doc.setValor("Vigente");
 
@@ -153,14 +156,15 @@ class DocumentoPersonalServiceUnitTest {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> documentoPersonalService.guardar(transportistaId, doc));
 
-        assertEquals("Documento ya registrado", ex.getMessage());
+        // 🔥 Ajuste: Mensaje sincronizado dinámicamente con el enum del tipo de documento
+        assertEquals("El documento tipo SOAT ya está registrado", ex.getMessage());
 
         verify(repository, never()).save(any(DocumentoPersonal.class));
         verify(auditService, never()).auditDocumento(any(), any(), anyString(), any(), any(), any());
     }
 
     @Test
-    @DisplayName("Debe lanzar excepción cuando SOAT no tiene fecha de vencimiento")
+    @DisplayName("Debe lanzar excepción cuando SOAT o REVISIÓN TÉCNICA no tienen fechas obligatorias")
     void guardar_DebeLanzarExcepcionCuandoSoatNoTieneFecha() {
         Long transportistaId = 1L;
 
@@ -169,7 +173,8 @@ class DocumentoPersonalServiceUnitTest {
 
         DocumentoPersonal doc = new DocumentoPersonal();
         doc.setTipoDocumento(TipoDocumento.SOAT);
-        doc.setFechaVencimiento(null);
+        doc.setFechaEmision(LocalDate.now());
+        doc.setFechaVencimiento(null); // 🔥 Forzamos la omisión de una de las fechas clave
         doc.setValor("Vigente");
 
         when(transportistaRepository.findById(transportistaId)).thenReturn(Optional.of(transportista));
@@ -178,7 +183,8 @@ class DocumentoPersonalServiceUnitTest {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> documentoPersonalService.guardar(transportistaId, doc));
 
-        assertEquals("Requiere fecha", ex.getMessage());
+        // 🔥 Ajuste: Mensaje de aserción corregido y mapeado con el Service
+        assertEquals("SOAT y REVISIÓN TÉCNICA requieren obligatoriamente fecha de emisión y vencimiento", ex.getMessage());
 
         verify(repository, never()).save(any(DocumentoPersonal.class));
         verify(auditService, never()).auditDocumento(any(), any(), anyString(), any(), any(), any());
