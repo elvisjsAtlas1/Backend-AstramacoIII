@@ -27,11 +27,5 @@ jobs:
       - name: Grant execute permission for Maven Wrapper
         run: chmod +x mvnw
 
-      - name: Run Unit Tests with Coverage
-        run: ./mvnw test jacoco:report  # 🔥 Agregar jacoco:report
-
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: target/site/jacoco/
+      - name: Run Unit Tests
+        run: ./mvnw test -Dtest=*UnitTest

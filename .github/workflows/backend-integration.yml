@@ -27,11 +27,5 @@ jobs:
       - name: Grant execute permission for Maven Wrapper
         run: chmod +x mvnw
 
-      - name: Run Integration Tests with Coverage
-        run: ./mvnw verify jacoco:report  # 🔥 Cambiar test por verify e incluir jacoco:report
-
-      - name: Upload integration coverage report
-        uses: actions/upload-artifact@v4
-        with:
-          name: integration-coverage-report
-          path: target/site/jacoco/
+      - name: Run Integration Tests
+        run: ./mvnw verify -Dtest=*IntegrationTest

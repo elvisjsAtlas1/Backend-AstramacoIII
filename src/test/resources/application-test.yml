@@ -23,5 +23,5 @@ app:
     password: admin123
 
   jwt:
-    secret: MiClaveSuperSeguraParaTesting1234567890
+    secret: 0123456789ABCDEF0123456789ABCDEF
     expiration-ms: 86400000
