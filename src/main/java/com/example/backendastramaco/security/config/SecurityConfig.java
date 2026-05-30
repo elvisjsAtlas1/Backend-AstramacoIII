@@ -2,11 +2,11 @@ package com.example.backendastramaco.security.config;
 
 import com.example.backendastramaco.security.jwt.JwtFilter;
 import com.example.backendastramaco.security.service.CustomUserDetailsService;
-import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -16,6 +16,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -37,11 +38,10 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                // 🔥 CORRECCIÓN 1: Manejo global de excepciones para sincronizar el código 401
+                // 🔥 CORRECCIÓN SONARQUBE: Se elimina la lambda anónima y response.sendError()
+                // Usamos HttpStatusEntryPoint que es un componente nativo y limpio.
                 .exceptionHandling(exception -> exception
-                        .authenticationEntryPoint((request, response, authException) -> {
-                            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized");
-                        })
+                        .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
                 )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
@@ -50,11 +50,8 @@ public class SecurityConfig {
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**",
                                 "/swagger-ui.html"
-                        ).permitAll() // ❌ Eliminado /api/usuarios de aquí para que no sea público por error
-
-                        // 🔥 CORRECCIÓN 2: El POST para crear usuarios ahora requiere rol ADMIN de forma estricta
+                        ).permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/usuarios").hasRole("ADMIN")
-
                         .anyRequest().authenticated()
                 )
                 .authenticationProvider(authenticationProvider())
