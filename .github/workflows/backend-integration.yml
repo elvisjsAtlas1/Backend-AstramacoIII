@@ -31,4 +31,3 @@ jobs:
         run: ./mvnw verify
         env:
           APP_JWT_SECRET: 0123456789ABCDEF0123456789ABCDEF
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
