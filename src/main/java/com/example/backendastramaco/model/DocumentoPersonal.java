@@ -17,18 +17,18 @@ import java.time.LocalDate;
 @Builder
 public class DocumentoPersonal extends BaseEntity {
 
-    //eliminado esta en baseEntity
-
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(name = "tipo_documento", nullable = false) // SonarQube: Especificar nombre de columna explícito
     private TipoDocumento tipoDocumento;
-
 
     @Column(nullable = false, length = 50)
     private String valor;
 
-    // 🔥 SOLO PARA SOAT Y REVISION TECNICA
+    // SonarQube: Asegura el mapeo correcto con la columna exacta de phpMyAdmin
+    @Column(name = "fecha_emision")
     private LocalDate fechaEmision;
+
+    @Column(name = "fecha_vencimiento")
     private LocalDate fechaVencimiento;
 
     @Builder.Default
@@ -39,4 +39,20 @@ public class DocumentoPersonal extends BaseEntity {
     @JoinColumn(name = "transportista_id", nullable = false)
     @JsonIgnore
     private Transportista transportista;
+
+    // 🔥 REGLA DE NEGOCIO PARA MANTENIBILIDAD (SonarQube & DB Safety)
+    @PrePersist
+    @PreUpdate
+    private void validarReglasDeFechas() {
+        if (this.tipoDocumento == TipoDocumento.SOAT || this.tipoDocumento == TipoDocumento.REVISION_TECNICA) {
+            // Validamos que para estos dos tipos NO sean nulas las fechas al registrar o actualizar
+            if (this.fechaEmision == null || this.fechaVencimiento == null) {
+                throw new IllegalStateException("Para SOAT y REVISION_TECNICA es obligatorio registrar fecha de emision y vencimiento.");
+            }
+        } else {
+            // Forzamos a que si es LICENCIA o TARJETA_CIRCULACION, las fechas sean NULL en la base de datos de forma estricta
+            this.fechaEmision = null;
+            this.fechaVencimiento = null;
+        }
+    }
 }

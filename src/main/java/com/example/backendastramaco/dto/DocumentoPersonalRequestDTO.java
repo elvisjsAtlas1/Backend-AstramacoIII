@@ -10,5 +10,6 @@ public class DocumentoPersonalRequestDTO {
 
     private TipoDocumento tipoDocumento;
     private String valor;
+    private LocalDate fechaEmision;
     private LocalDate fechaVencimiento;
 }

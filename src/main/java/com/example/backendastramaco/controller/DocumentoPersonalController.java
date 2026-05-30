@@ -38,6 +38,9 @@ public class DocumentoPersonalController {
         DocumentoPersonal doc = new DocumentoPersonal();
         doc.setTipoDocumento(dto.getTipoDocumento());
         doc.setValor(dto.getValor());
+
+        // 🔥 CORRECCIÓN 1: Mapeamos de forma explícita el campo faltante
+        doc.setFechaEmision(dto.getFechaEmision());
         doc.setFechaVencimiento(dto.getFechaVencimiento());
 
         return service.guardar(transportistaId, doc);
