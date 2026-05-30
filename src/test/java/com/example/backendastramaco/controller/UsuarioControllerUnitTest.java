@@ -4,42 +4,63 @@ import com.example.backendastramaco.dto.UsuarioRequestDTO;
 import com.example.backendastramaco.model.Usuario;
 import com.example.backendastramaco.model.enums.Rol;
 import com.example.backendastramaco.service.UsuarioService;
-import org.junit.jupiter.api.BeforeEach;
+import com.example.backendastramaco.security.jwt.JwtFilter;
+import com.example.backendastramaco.security.service.CustomUserDetailsService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext; // 🔥 IMPORTANTE
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
 
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+@WebMvcTest(controllers = UsuarioController.class)
+@AutoConfigureMockMvc(addFilters = false)
 class UsuarioControllerUnitTest {
 
-    private UsuarioController usuarioController;
+    @Autowired
+    private MockMvc mockMvc;
+
+    @MockBean
     private UsuarioService usuarioService;
 
-    @BeforeEach
-    void setUp() {
-        usuarioService = Mockito.mock(UsuarioService.class);
-        usuarioController = new UsuarioController(usuarioService);
-    }
+    @MockBean
+    private JwtFilter jwtFilter;
+
+    @MockBean
+    private CustomUserDetailsService customUserDetailsService;
+
+    // 🔥 SOLUCIÓN AL METAMODEL ERROR
+    @MockBean
+    private JpaMetamodelMappingContext jpaMetamodelMappingContext;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @Test
-    @DisplayName("Debe invocar el método crear del controlador y cubrir las asignaciones en JaCoCo sin levantar Spring")
-    void crear_DebePasarPorLasLineasDelControllerCompletamente() {
-        // Arrange
+    @DisplayName("Debe invocar el método crear del controlador y cubrir las asignaciones en JaCoCo")
+    void crear_DebePasarPorLasLineasDelControllerCompletamente() throws Exception {
         UsuarioRequestDTO dto = new UsuarioRequestDTO();
         dto.setUsername("carlos.qa");
         dto.setPassword("passwordSecure123");
         dto.setRol(Rol.TRANSPORTISTA);
 
-        when(usuarioService.crear(any(Usuario.class))).thenReturn(new Usuario());
+        Usuario usuarioEsperado = new Usuario();
+        usuarioEsperado.setUsername("carlos.qa");
 
-        // Act
-        Usuario resultado = usuarioController.crear(dto);
+        when(usuarioService.crear(any(Usuario.class))).thenReturn(usuarioEsperado);
 
-        // Assert
-        assertNotNull(dto.getUsername());
-        assertNotNull(dto.getPassword());
+        mockMvc.perform(post("/api/usuarios")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isOk());
     }
 }

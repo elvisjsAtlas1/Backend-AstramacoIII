@@ -18,7 +18,6 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 @Tag(name = "Autenticación", description = "API para autenticación y gestión de tokens JWT")
 public class AuthController {
 
