@@ -3,6 +3,7 @@ package com.example.backendastramaco.exception;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -13,13 +14,34 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    // Constantes para evitar duplicación de strings
+    // Constantes
     private static final String TIMESTAMP = "timestamp";
     private static final String MESSAGE = "message";
     private static final String STATUS = "status";
     private static final String ERROR = "error";
     private static final String BAD_REQUEST = "Bad Request";
     private static final String NOT_FOUND = "Not Found";
+
+    // ✅ AGREGAR ESTE MANEJADOR (es el que falta)
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<Map<String, Object>> handleMethodArgumentNotValid(MethodArgumentNotValidException ex) {
+        Map<String, Object> response = new HashMap<>();
+
+        // Obtener el primer error de validación
+        String errorMessage = ex.getBindingResult()
+                .getFieldErrors()
+                .stream()
+                .findFirst()
+                .map(error -> error.getField() + ": " + error.getDefaultMessage())
+                .orElse("Error de validación en los datos de entrada");
+
+        response.put(TIMESTAMP, LocalDateTime.now());
+        response.put(MESSAGE, errorMessage);
+        response.put(STATUS, HttpStatus.BAD_REQUEST.value());
+        response.put(ERROR, BAD_REQUEST);
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<Map<String, String>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {

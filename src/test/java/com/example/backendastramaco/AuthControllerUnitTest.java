@@ -1,5 +1,6 @@
-package com.example.backendastramaco.controller;
+package com.example.backendastramaco;
 
+import com.example.backendastramaco.controller.AuthController;
 import com.example.backendastramaco.model.Usuario;
 import com.example.backendastramaco.model.enums.Rol;
 import com.example.backendastramaco.repository.UsuarioRepository;
@@ -12,7 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext; // 🔥 IMPORTANTE
+import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -50,7 +51,6 @@ class AuthControllerUnitTest {
     @MockBean
     private CustomUserDetailsService customUserDetailsService;
 
-    // 🔥 SOLUCIÓN AL METAMODEL ERROR: Simula el contexto de mapeo JPA ausente en entornos web
     @MockBean
     private JpaMetamodelMappingContext jpaMetamodelMappingContext;
 
@@ -65,8 +65,13 @@ class AuthControllerUnitTest {
         usuarioSimulado.setUsername(username);
         usuarioSimulado.setRol(Rol.ADMIN);
 
+        // ✅ CORRECCIÓN: Configurar el mock de Authentication correctamente
+        Authentication authenticationMock = mock(Authentication.class);
+        when(authenticationMock.isAuthenticated()).thenReturn(true);
+
         when(authManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
-                .thenReturn(mock(Authentication.class));
+                .thenReturn(authenticationMock);
+
         when(jwtUtil.generateToken(username)).thenReturn("mocked-jwt-token-2026");
         when(usuarioRepository.findByUsername(username)).thenReturn(Optional.of(usuarioSimulado));
 

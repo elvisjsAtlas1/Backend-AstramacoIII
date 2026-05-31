@@ -94,18 +94,14 @@ class AuthIntegrationTest extends AuthBaseIntegrationTest {
     }
 
     @Test
-    @DisplayName("Debe retornar 401 Unauthorized cuando el request body está vacío")
-    void login_DebeRetornarUnauthorized_CuandoRequestBodyEstaVacio() throws Exception {
-        // Arrange
+    @DisplayName("Debe retornar 400 Bad Request cuando el request body está vacío")
+    void login_DebeRetornarBadRequest_CuandoRequestBodyEstaVacio() throws Exception {
         String emptyBody = "{}";
 
-        // Act
-        ResultActions result = mockMvc.perform(post(LOGIN_URL)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(emptyBody));
-
-        // Assert
-        result.andExpect(status().isUnauthorized());
+        mockMvc.perform(post(LOGIN_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(emptyBody))
+                .andExpect(status().isBadRequest());  // ✅ Cambiado de 401 a 400
     }
 
     @Test

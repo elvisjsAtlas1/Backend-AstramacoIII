@@ -1,5 +1,6 @@
-package com.example.backendastramaco.security.config;
+package com.example.backendastramaco;
 
+import com.example.backendastramaco.security.config.SecurityConfig;
 import com.example.backendastramaco.security.jwt.JwtFilter;
 import com.example.backendastramaco.security.service.CustomUserDetailsService;
 import org.junit.jupiter.api.DisplayName;
@@ -18,7 +19,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-class SecurityConfigFilterChainTest {
+class SecurityConfigUnitTest {
 
     @Mock
     private JwtFilter jwtFilter;

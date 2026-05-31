@@ -1,5 +1,6 @@
-package com.example.backendastramaco.controller;
+package com.example.backendastramaco;
 
+import com.example.backendastramaco.controller.UsuarioController;
 import com.example.backendastramaco.dto.UsuarioRequestDTO;
 import com.example.backendastramaco.model.Usuario;
 import com.example.backendastramaco.model.enums.Rol;
