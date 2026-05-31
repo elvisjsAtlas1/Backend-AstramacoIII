@@ -70,4 +70,19 @@ public class TransportistaController {
         return transportistaRepository.findByUsuario(usuario)
                 .orElseThrow(() -> new RuntimeException("Transportista no encontrado"));
     }
+
+    // Agregar a TransportistaController.java
+
+    @PutMapping("/{id}")
+    @Operation(summary = "Actualizar transportista", description = "Actualiza los datos de un transportista existente")
+    public Transportista actualizar(@PathVariable Long id, @RequestBody TransportistaRequestDTO dto) {
+        return service.actualizar(id, dto);
+    }
+
+    @DeleteMapping("/{id}")
+    @Operation(summary = "Eliminar transportista", description = "Elimina lógicamente un transportista")
+    public void eliminar(@PathVariable Long id, Authentication authentication) {
+        String username = authentication != null ? authentication.getName() : "SYSTEM";
+        service.eliminar(id, username);
+    }
 }

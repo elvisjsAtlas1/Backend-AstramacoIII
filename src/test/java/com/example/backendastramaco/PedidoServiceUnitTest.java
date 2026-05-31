@@ -5,6 +5,7 @@ import com.example.backendastramaco.dto.PedidoResponseDTO;
 import com.example.backendastramaco.model.Carga;
 import com.example.backendastramaco.model.Pedido;
 import com.example.backendastramaco.model.Transportista;
+import com.example.backendastramaco.model.enums.EstadoPedido;
 import com.example.backendastramaco.model.enums.TipoMaterial;
 import com.example.backendastramaco.model.enums.TipoTransporte;
 import com.example.backendastramaco.repository.CargaRepository;
@@ -170,6 +171,126 @@ class PedidoServiceUnitTest {
 
         verify(pedidoRepository).save(any(Pedido.class));
         verify(auditService, times(1)).auditPedido(anyLong(), eq("CREATE"), isNull(), any(), any());
+    }
+
+    @Test
+    @DisplayName("Debe actualizar estado del pedido correctamente")
+    void actualizarEstado_DebeActualizarEstadoYAuditar() {
+        // Arrange
+        Long pedidoId = 1L;
+        String nuevoEstado = "ENTREGADO";
+
+        Pedido pedidoExistente = Pedido.builder()
+                .clienteNombre("Cliente")
+                .estado(EstadoPedido.EN_ENVIO)  // Estado inicial
+                .build();
+        ReflectionTestUtils.setField(pedidoExistente, "id", pedidoId);
+
+        ArgumentCaptor<Pedido> oldCopyCaptor = ArgumentCaptor.forClass(Pedido.class);
+
+        when(pedidoRepository.findById(pedidoId)).thenReturn(Optional.of(pedidoExistente));
+        when(pedidoRepository.save(any(Pedido.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        doNothing().when(auditService).auditPedido(anyLong(), anyString(), oldCopyCaptor.capture(), any(), any());
+
+        // Act
+        PedidoResponseDTO resultado = pedidoService.actualizarEstado(pedidoId, nuevoEstado);
+
+        // Assert
+        assertNotNull(resultado);
+        assertEquals(EstadoPedido.ENTREGADO, pedidoExistente.getEstado());
+
+        // Verificar que la copia no tiene ID
+        Pedido oldCopy = oldCopyCaptor.getValue();
+        assertNull(oldCopy.getId(), "La copia del estado anterior no debe tener ID");
+
+        verify(pedidoRepository).findById(pedidoId);
+        verify(pedidoRepository).save(pedidoExistente);
+        verify(auditService, times(1)).auditPedido(eq(pedidoId), eq("UPDATE"), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("Debe eliminar pedido lógicamente (soft delete)")
+    void eliminar_DebeEliminarPedidoLogicamente() {
+        // Arrange
+        Long pedidoId = 1L;
+        String username = "admin";
+
+        Pedido pedidoExistente = Pedido.builder()
+                .clienteNombre("Cliente")
+                .build();
+        ReflectionTestUtils.setField(pedidoExistente, "id", pedidoId);
+
+        ArgumentCaptor<Pedido> oldCopyCaptor = ArgumentCaptor.forClass(Pedido.class);
+
+        when(pedidoRepository.findById(pedidoId)).thenReturn(Optional.of(pedidoExistente));
+        when(pedidoRepository.save(any(Pedido.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        doNothing().when(auditService).auditPedido(anyLong(), anyString(), oldCopyCaptor.capture(), any(), any());
+
+        // Act
+        pedidoService.eliminar(pedidoId, username);
+
+        // Assert
+        assertNotNull(pedidoExistente.getDeletedAt(), "deletedAt debe estar presente");
+        assertEquals(username, pedidoExistente.getDeletedBy(), "deletedBy debe ser el username");
+
+        // Verificar que la copia no tiene ID
+        Pedido oldCopy = oldCopyCaptor.getValue();
+        assertNull(oldCopy.getId(), "La copia para auditoría no debe tener ID");
+
+        verify(pedidoRepository).findById(pedidoId);
+        verify(pedidoRepository).save(pedidoExistente);
+        verify(auditService, times(1)).auditPedido(eq(pedidoId), eq("DELETE"), any(), isNull(), any());
+    }
+
+    @Test
+    @DisplayName("Debe lanzar excepción cuando el estado es inválido")
+    void actualizarEstado_DebeLanzarExcepcion_CuandoEstadoInvalido() {
+        // Arrange
+        Long pedidoId = 1L;
+        String nuevoEstadoInvalido = "ESTADO_INEXISTENTE";
+
+        Pedido pedidoExistente = Pedido.builder()
+                .clienteNombre("Cliente")
+                .estado(EstadoPedido.EN_ENVIO)
+                .build();
+        ReflectionTestUtils.setField(pedidoExistente, "id", pedidoId);
+
+        when(pedidoRepository.findById(pedidoId)).thenReturn(Optional.of(pedidoExistente));
+
+        // Act & Assert
+        assertThrows(IllegalArgumentException.class,
+                () -> pedidoService.actualizarEstado(pedidoId, nuevoEstadoInvalido));
+
+        verify(pedidoRepository).findById(pedidoId);
+        verify(pedidoRepository, never()).save(any());
+        verify(auditService, never()).auditPedido(anyLong(), anyString(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("Debe permitir actualizar a cualquier estado válido")
+    void actualizarEstado_DebePermitirTodosLosEstadosValidos() {
+        // Arrange
+        Long pedidoId = 1L;
+        List<String> estadosValidos = List.of("EN_ENVIO", "EN_DESCARGA", "ENTREGADO", "CANCELADO");
+
+        for (String nuevoEstado : estadosValidos) {
+            Pedido pedidoExistente = Pedido.builder()
+                    .clienteNombre("Cliente")
+                    .estado(EstadoPedido.EN_ENVIO)
+                    .build();
+            ReflectionTestUtils.setField(pedidoExistente, "id", pedidoId);
+
+            when(pedidoRepository.findById(pedidoId)).thenReturn(Optional.of(pedidoExistente));
+            when(pedidoRepository.save(any(Pedido.class))).thenAnswer(invocation -> invocation.getArgument(0));
+            doNothing().when(auditService).auditPedido(anyLong(), anyString(), any(), any(), any());
+
+            // Act
+            PedidoResponseDTO resultado = pedidoService.actualizarEstado(pedidoId, nuevoEstado);
+
+            // Assert
+            assertNotNull(resultado);
+            assertEquals(EstadoPedido.valueOf(nuevoEstado), pedidoExistente.getEstado());
+        }
     }
 
     @Test

@@ -109,13 +109,12 @@ public class DocumentoPersonalService {
 
     private DocumentoPersonal copiarEntidad(DocumentoPersonal original) {
         DocumentoPersonal copia = new DocumentoPersonal();
-        copia.setId(original.getId()); // Funciona sin errores porque usa el setter estándar de la herencia
         copia.setTipoDocumento(original.getTipoDocumento());
         copia.setValor(original.getValor());
         copia.setFechaEmision(original.getFechaEmision());
         copia.setFechaVencimiento(original.getFechaVencimiento());
         copia.setActivo(original.getActivo());
-        copia.setTransportista(original.getTransportista());
+
         return copia;
     }
 }

@@ -147,8 +147,12 @@ public class TransportistaService {
         // Guardar copia para auditoría
         Transportista oldCopy = copiarEntidad(existente);
 
-        // Soft delete
+        // Soft delete de BaseEntity (marca deletedAt y deletedBy)
         existente.softDelete(username);
+
+        // 🔥 IMPORTANTE: Cambiar el estado explícitamente a INACTIVO
+        existente.setEstado(EstadoTransportista.INACTIVO);
+
         transportistaRepository.save(existente);
 
         // Auditar eliminación
@@ -161,10 +165,9 @@ public class TransportistaService {
         );
     }
 
-    private Transportista copiarEntidad(Transportista original) {
+    public Transportista copiarEntidad(Transportista original) {
         Transportista copia = new Transportista();
-        copia.setId(original.getId());
-        copia.setUsuario(original.getUsuario());
+
         copia.setNombre(original.getNombre());
         copia.setApellidos(original.getApellidos());
         copia.setDni(original.getDni());
@@ -174,7 +177,7 @@ public class TransportistaService {
         copia.setVehiculoInfo(original.getVehiculoInfo());
         copia.setCapacidad(original.getCapacidad());
         copia.setEstado(original.getEstado());
-        copia.setDocumentos(original.getDocumentos());
+
         return copia;
     }
 }

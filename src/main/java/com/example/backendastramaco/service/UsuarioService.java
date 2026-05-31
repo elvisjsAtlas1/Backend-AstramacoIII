@@ -93,11 +93,11 @@ public class UsuarioService {
 
     private Usuario copiarEntidad(Usuario original) {
         Usuario copia = new Usuario();
-        copia.setId(original.getId());
         copia.setUsername(original.getUsername());
         copia.setPassword(original.getPassword());
         copia.setRol(original.getRol());
         copia.setActivo(original.getActivo());
+
         return copia;
     }
 }

@@ -6,27 +6,61 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
-@RestControllerAdvice // SonarQube aprueba centralizar excepciones aquí para limpieza de código
+@RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    // 🔥 CORRECCIÓN: Atrapa los errores de llaves duplicadas de la DB y responde con un 400 Bad Request limpio
+    // Constantes para evitar duplicación de strings
+    private static final String TIMESTAMP = "timestamp";
+    private static final String MESSAGE = "message";
+    private static final String STATUS = "status";
+    private static final String ERROR = "error";
+    private static final String BAD_REQUEST = "Bad Request";
+    private static final String NOT_FOUND = "Not Found";
+
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<Map<String, String>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
         Map<String, String> response = new HashMap<>();
-        response.clear();
 
-        // Evaluamos si el fallo es por un registro duplicado
         if (ex.getMessage() != null && ex.getMessage().contains("Duplicate entry")) {
-            response.put("error", "El registro o nombre de usuario ya existe en el sistema.");
+            response.put(ERROR, "El registro o nombre de usuario ya existe en el sistema.");
         } else {
-            response.put("error", "Violación de integridad de datos en la base de datos.");
+            response.put(ERROR, "Violación de integridad de datos en la base de datos.");
         }
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 
-    // Puedes tener aquí otros métodos para IllegalArgumentException, EntityNotFoundException, etc.
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<Map<String, Object>> handleIllegalArgumentException(IllegalArgumentException ex) {
+        Map<String, Object> response = new HashMap<>();
+        response.put(TIMESTAMP, LocalDateTime.now());
+        response.put(MESSAGE, ex.getMessage());
+        response.put(STATUS, HttpStatus.BAD_REQUEST.value());
+        response.put(ERROR, BAD_REQUEST);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
+
+    @ExceptionHandler(RuntimeException.class)
+    public ResponseEntity<Map<String, Object>> handleRuntimeException(RuntimeException ex) {
+        Map<String, Object> response = new HashMap<>();
+        response.put(TIMESTAMP, LocalDateTime.now());
+        response.put(MESSAGE, ex.getMessage());
+        response.put(STATUS, HttpStatus.BAD_REQUEST.value());
+        response.put(ERROR, BAD_REQUEST);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
+
+    @ExceptionHandler(jakarta.persistence.EntityNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleEntityNotFoundException(jakarta.persistence.EntityNotFoundException ex) {
+        Map<String, Object> response = new HashMap<>();
+        response.put(TIMESTAMP, LocalDateTime.now());
+        response.put(MESSAGE, ex.getMessage());
+        response.put(STATUS, HttpStatus.NOT_FOUND.value());
+        response.put(ERROR, NOT_FOUND);
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+    }
 }

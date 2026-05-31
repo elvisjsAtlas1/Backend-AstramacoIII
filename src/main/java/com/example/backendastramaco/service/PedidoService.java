@@ -208,7 +208,7 @@ public class PedidoService {
 
     private Pedido copiarEntidad(Pedido original) {
         Pedido copia = new Pedido();
-        copia.setId(original.getId());
+
         copia.setClienteNombre(original.getClienteNombre());
         copia.setClienteTelefono(original.getClienteTelefono());
         copia.setDireccionEnvio(original.getDireccionEnvio());
@@ -219,9 +219,9 @@ public class PedidoService {
         copia.setAdelanto(original.getAdelanto());
         copia.setPiso(original.getPiso());
         copia.setHoraEnvio(original.getHoraEnvio());
-        copia.setTransportista(original.getTransportista());
         copia.setEstado(original.getEstado());
         copia.setCodigoVerificacion(original.getCodigoVerificacion());
+
         return copia;
     }
 }

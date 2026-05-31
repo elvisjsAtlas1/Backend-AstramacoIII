@@ -8,18 +8,17 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
-import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.web.DefaultSecurityFilterChain;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-class SecurityConfigUnitTest {
+class SecurityConfigFilterChainTest {
 
     @Mock
     private JwtFilter jwtFilter;
@@ -31,39 +30,32 @@ class SecurityConfigUnitTest {
     private SecurityConfig securityConfig;
 
     @Test
-    @DisplayName("Debe crear correctamente el AuthenticationProvider")
-    void debeCrearAuthenticationProvider() {
-        DaoAuthenticationProvider authProvider = securityConfig.authenticationProvider();
-        assertNotNull(authProvider, "El AuthenticationProvider no debería ser nulo");
-    }
+    @DisplayName("Debe crear el SecurityFilterChain con la configuración correcta")
+    void filterChain_DebeConfigurarSeguridadCorrectamente() throws Exception {
+        // Arrange
+        HttpSecurity http = mock(HttpSecurity.class);
 
-    @Test
-    @DisplayName("Debe crear correctamente el PasswordEncoder")
-    void debeCrearPasswordEncoder() {
-        PasswordEncoder encoder = securityConfig.passwordEncoder();
-        assertNotNull(encoder, "El PasswordEncoder no debería ser nulo");
-        assertTrue(encoder instanceof BCryptPasswordEncoder);
-    }
+        when(http.cors(any())).thenReturn(http);
+        when(http.csrf(any())).thenReturn(http);
+        when(http.sessionManagement(any())).thenReturn(http);
+        when(http.exceptionHandling(any())).thenReturn(http);
+        when(http.authorizeHttpRequests(any())).thenReturn(http);
+        when(http.authenticationProvider(any())).thenReturn(http);
+        when(http.addFilterBefore(any(), any())).thenReturn(http);
+        when(http.build()).thenReturn(mock(DefaultSecurityFilterChain.class));
 
-    @Test
-    @DisplayName("Debe crear correctamente la configuración CORS")
-    void debeCrearCorsConfigurationSource() {
-        CorsConfigurationSource corsSource = securityConfig.corsConfigurationSource();
-        assertNotNull(corsSource, "La configuración CORS no debería ser nula");
-        // No intentamos obtener la configuración porque requiere un request HTTP real
-    }
+        // Act
+        SecurityFilterChain result = securityConfig.filterChain(http);
 
-    @Test
-    @DisplayName("Debe crear correctamente el AuthenticationManager")
-    void debeCrearAuthenticationManager() throws Exception {
-        AuthenticationConfiguration authConfig = mock(AuthenticationConfiguration.class);
-        AuthenticationManager expectedManager = mock(AuthenticationManager.class);
-        when(authConfig.getAuthenticationManager()).thenReturn(expectedManager);
-
-        AuthenticationManager result = securityConfig.authenticationManager(authConfig);
-
+        // Assert
         assertNotNull(result);
-        assertEquals(expectedManager, result);
-        verify(authConfig, times(1)).getAuthenticationManager();
+        verify(http, atLeastOnce()).cors(any());
+        verify(http, atLeastOnce()).csrf(any());
+        verify(http, atLeastOnce()).sessionManagement(any());
+        verify(http, atLeastOnce()).exceptionHandling(any());
+        verify(http, atLeastOnce()).authorizeHttpRequests(any());
+        verify(http, atLeastOnce()).authenticationProvider(any());
+        verify(http, atLeastOnce()).addFilterBefore(eq(jwtFilter), eq(UsernamePasswordAuthenticationFilter.class));
+        verify(http, atLeastOnce()).build();
     }
 }

@@ -187,4 +187,148 @@ class TransportistaServiceUnitTest {
         assertNotNull(resultado);
         assertEquals(3, resultado.size());
     }
+
+    // ========== PRUEBAS PARA ACTUALIZAR ==========
+
+    @Test
+    @DisplayName("Debe actualizar transportista exitosamente")
+    void actualizar_DebeActualizarTransportista_CuandoExiste() {
+        // Arrange
+        Long transportistaId = 1L;
+        Transportista transportistaExistente = new Transportista();
+        transportistaExistente.setId(transportistaId);
+        transportistaExistente.setNombre("Juan");
+        transportistaExistente.setApellidos("Perez");
+        transportistaExistente.setDni("12345678");
+        transportistaExistente.setEdad(30);
+        transportistaExistente.setTipoTransporte(TipoTransporte.CAMIONERO);
+        transportistaExistente.setPlaca("ABC-123");
+        transportistaExistente.setVehiculoInfo("Camion rojo");
+        transportistaExistente.setCapacidad(10.5);
+        transportistaExistente.setEstado(EstadoTransportista.ACTIVO);
+
+        TransportistaRequestDTO dto = new TransportistaRequestDTO();
+        dto.setNombre("Juan Carlos");
+        dto.setApellidos("Perez Gomez");
+        dto.setDni("87654321");
+        dto.setEdad(35);
+        dto.setTipoTransporte(TipoTransporte.VOLQUETERO);
+        dto.setPlaca("XYZ-789");
+        dto.setVehiculoInfo("Camion azul");
+        dto.setCapacidad(15.0);
+        dto.setEstado("INACTIVO");
+
+        when(transportistaRepository.findById(transportistaId))
+                .thenReturn(Optional.of(transportistaExistente));
+        when(transportistaRepository.save(any(Transportista.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        doNothing().when(auditService).auditTransportista(any(), anyString(), any(), any(), any());
+
+        // Act
+        Transportista resultado = transportistaService.actualizar(transportistaId, dto);
+
+        // Assert
+        assertNotNull(resultado);
+        assertEquals("Juan Carlos", resultado.getNombre());
+        assertEquals("Perez Gomez", resultado.getApellidos());
+        assertEquals("87654321", resultado.getDni());
+        assertEquals(35, resultado.getEdad());
+        assertEquals(TipoTransporte.VOLQUETERO, resultado.getTipoTransporte());
+        assertEquals("XYZ-789", resultado.getPlaca());
+        assertEquals("Camion azul", resultado.getVehiculoInfo());
+        assertEquals(15.0, resultado.getCapacidad());
+        assertEquals(EstadoTransportista.INACTIVO, resultado.getEstado());
+
+        verify(transportistaRepository).findById(transportistaId);
+        verify(transportistaRepository).save(any(Transportista.class));
+        verify(auditService, times(1)).auditTransportista(any(), eq("UPDATE"), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("Debe lanzar excepción al actualizar transportista que no existe")
+    void actualizar_DebeLanzarExcepcion_CuandoTransportistaNoExiste() {
+        // Arrange
+        Long transportistaId = 999L;
+        TransportistaRequestDTO dto = new TransportistaRequestDTO();
+
+        when(transportistaRepository.findById(transportistaId))
+                .thenReturn(Optional.empty());
+
+        // Act & Assert
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+            transportistaService.actualizar(transportistaId, dto);
+        });
+
+        assertTrue(exception.getMessage().contains("Transportista no encontrado"));
+        verify(transportistaRepository, never()).save(any());
+    }
+
+// ========== PRUEBAS PARA ELIMINAR ==========
+
+    @Test
+    @DisplayName("Debe eliminar transportista lógicamente (soft delete)")
+    void eliminar_DebeEliminarTransportistaLogicamente_CuandoExiste() {
+        // Arrange
+        Long transportistaId = 1L;
+        String username = "admin";
+        Transportista transportistaExistente = new Transportista();
+        transportistaExistente.setId(transportistaId);
+        transportistaExistente.setNombre("Juan");
+        transportistaExistente.setEstado(EstadoTransportista.ACTIVO);
+
+        when(transportistaRepository.findById(transportistaId))
+                .thenReturn(Optional.of(transportistaExistente));
+        when(transportistaRepository.save(any(Transportista.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        doNothing().when(auditService).auditTransportista(anyLong(), anyString(), any(), any(), any());
+
+        // Act
+        transportistaService.eliminar(transportistaId, username);
+
+        // Assert
+        assertEquals(EstadoTransportista.INACTIVO, transportistaExistente.getEstado(),
+                "El estado debe cambiar a INACTIVO");
+        assertNotNull(transportistaExistente.getDeletedAt(), "deletedAt debe estar presente");
+        assertEquals(username, transportistaExistente.getDeletedBy(), "deletedBy debe ser el username");
+
+        verify(transportistaRepository).findById(transportistaId);
+        verify(transportistaRepository).save(transportistaExistente);
+    }
+// ========== PRUEBAS PARA COPIAR ENTIDAD ==========
+
+    @Test
+    @DisplayName("Debe copiar correctamente los datos del transportista sin copiar el ID")
+    void copiarEntidad_DebeCopiarDatosCorrectamente() {
+        // Arrange
+        Transportista source = new Transportista();
+        source.setId(100L);
+        source.setNombre("Juan");
+        source.setApellidos("Perez");
+        source.setDni("12345678");
+        source.setEdad(30);
+        source.setTipoTransporte(TipoTransporte.CAMIONERO);
+        source.setPlaca("ABC-123");
+        source.setVehiculoInfo("Camion rojo");
+        source.setCapacidad(10.5);
+        source.setEstado(EstadoTransportista.ACTIVO);
+
+        // Act
+        Transportista result = transportistaService.copiarEntidad(source);
+
+        // Assert
+        assertNotEquals(source.getId(), result.getId(), "El ID no debe copiarse");
+        assertNull(result.getId(), "El ID debe ser null para nueva entidad");
+        assertEquals(source.getNombre(), result.getNombre());
+        assertEquals(source.getApellidos(), result.getApellidos());
+        assertEquals(source.getDni(), result.getDni());
+        assertEquals(source.getEdad(), result.getEdad());
+        assertEquals(source.getTipoTransporte(), result.getTipoTransporte());
+        assertEquals(source.getPlaca(), result.getPlaca());
+        assertEquals(source.getVehiculoInfo(), result.getVehiculoInfo());
+        assertEquals(source.getCapacidad(), result.getCapacidad());
+        assertEquals(source.getEstado(), result.getEstado());
+    }
+
 }

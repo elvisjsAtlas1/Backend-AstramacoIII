@@ -135,6 +135,113 @@ class DocumentoPersonalServiceUnitTest {
         verify(repository, never()).save(any(DocumentoPersonal.class));
         verify(auditService, never()).auditDocumento(any(), any(), anyString(), any(), any(), any());
     }
+    @Test
+    @DisplayName("Debe actualizar documento correctamente")
+    void actualizar_DebeActualizarDocumentoYAuditar() {
+        // Arrange
+        Long documentoId = 1L;
+        Long transportistaId = 1L;
+
+        Transportista transportista = new Transportista();
+        transportista.setId(transportistaId);
+
+        DocumentoPersonal documentoExistente = new DocumentoPersonal();
+        documentoExistente.setId(documentoId);
+        documentoExistente.setTipoDocumento(TipoDocumento.SOAT);
+        documentoExistente.setValor("Vigente");
+        documentoExistente.setFechaEmision(LocalDate.of(2025, 1, 1));
+        documentoExistente.setFechaVencimiento(LocalDate.of(2026, 12, 31));
+        documentoExistente.setActivo(true);
+        documentoExistente.setTransportista(transportista);
+
+        DocumentoPersonal nuevosDatos = new DocumentoPersonal();
+        nuevosDatos.setTipoDocumento(TipoDocumento.SOAT);
+        nuevosDatos.setValor("Vencido");
+        nuevosDatos.setFechaEmision(LocalDate.of(2025, 1, 1));
+        nuevosDatos.setFechaVencimiento(LocalDate.of(2026, 12, 31));
+        nuevosDatos.setActivo(true);
+
+        ArgumentCaptor<DocumentoPersonal> oldCopyCaptor = ArgumentCaptor.forClass(DocumentoPersonal.class);
+
+        when(repository.findById(documentoId)).thenReturn(Optional.of(documentoExistente));
+        when(repository.save(any(DocumentoPersonal.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        doNothing().when(auditService).auditDocumento(anyLong(), anyLong(), anyString(), oldCopyCaptor.capture(), any(), any());
+
+        // Act
+        DocumentoPersonal resultado = documentoPersonalService.actualizar(documentoId, nuevosDatos);
+
+        // Assert
+        assertNotNull(resultado);
+        assertEquals("Vencido", resultado.getValor());
+
+        // Verificar que la copia no tiene ID
+        DocumentoPersonal oldCopy = oldCopyCaptor.getValue();
+        assertNull(oldCopy.getId(), "La copia anterior no debe tener ID");
+        assertNull(oldCopy.getTransportista(), "La copia anterior no debe tener transportista");
+
+        verify(repository).findById(documentoId);
+        verify(repository).save(documentoExistente);
+        verify(auditService, times(1)).auditDocumento(eq(documentoId), eq(transportistaId), eq("UPDATE"), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("Debe eliminar documento lógicamente (soft delete)")
+    void eliminar_DebeEliminarDocumentoLogicamente() {
+        // Arrange
+        Long documentoId = 1L;
+        String username = "admin";
+        Long transportistaId = 1L;
+
+        Transportista transportista = new Transportista();
+        transportista.setId(transportistaId);
+
+        DocumentoPersonal documentoExistente = new DocumentoPersonal();
+        documentoExistente.setId(documentoId);
+        documentoExistente.setTipoDocumento(TipoDocumento.SOAT);
+        documentoExistente.setActivo(true);
+        documentoExistente.setTransportista(transportista);
+
+        ArgumentCaptor<DocumentoPersonal> oldCopyCaptor = ArgumentCaptor.forClass(DocumentoPersonal.class);
+
+        when(repository.findById(documentoId)).thenReturn(Optional.of(documentoExistente));
+        when(repository.save(any(DocumentoPersonal.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        doNothing().when(auditService).auditDocumento(anyLong(), anyLong(), anyString(), oldCopyCaptor.capture(), any(), any());
+
+        // Act
+        documentoPersonalService.eliminar(documentoId, username);
+
+        // Assert
+        assertFalse(documentoExistente.getActivo(), "El documento debe estar inactivo");
+
+        // Verificar que la copia no tiene ID
+        DocumentoPersonal oldCopy = oldCopyCaptor.getValue();
+        assertNull(oldCopy.getId(), "La copia para auditoría no debe tener ID");
+        assertNull(oldCopy.getTransportista(), "La copia para auditoría no debe tener transportista");
+
+        verify(repository).findById(documentoId);
+        verify(repository).save(documentoExistente);
+        verify(auditService, times(1)).auditDocumento(eq(documentoId), eq(transportistaId), eq("DELETE"), any(), isNull(), any());
+    }
+
+    @Test
+    @DisplayName("Debe lanzar excepción al actualizar documento que no existe")
+    void actualizar_DebeLanzarExcepcion_CuandoDocumentoNoExiste() {
+        // Arrange
+        Long documentoId = 999L;
+        DocumentoPersonal nuevosDatos = new DocumentoPersonal();
+
+        when(repository.findById(documentoId)).thenReturn(Optional.empty());
+
+        // Act & Assert
+        EntityNotFoundException ex = assertThrows(EntityNotFoundException.class,
+                () -> documentoPersonalService.actualizar(documentoId, nuevosDatos));
+
+        assertEquals("Documento con ID 999 no encontrado", ex.getMessage());
+
+        verify(repository).findById(documentoId);
+        verify(repository, never()).save(any());
+        verify(auditService, never()).auditDocumento(anyLong(), anyLong(), anyString(), any(), any(), any());
+    }
 
     @Test
     @DisplayName("Debe lanzar excepción cuando el documento ya está registrado")
