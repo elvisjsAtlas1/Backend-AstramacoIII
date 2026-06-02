@@ -79,7 +79,7 @@ class UsuarioIntegrationTest extends UsuarioBaseIntegrationTest {
         {
           "username": "usuario.sin.token",
           "password": "123456",
-          "rol": "USER"
+          "rol": "TRANSPORTISTA"
         }
         """;
 
@@ -99,7 +99,7 @@ class UsuarioIntegrationTest extends UsuarioBaseIntegrationTest {
         {
           "username": "usuario.token.invalido",
           "password": "123456",
-          "rol": "USER"
+          "rol": "TRANSPORTISTA"
         }
         """;
 
