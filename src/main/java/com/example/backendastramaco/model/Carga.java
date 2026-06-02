@@ -1,5 +1,6 @@
 package com.example.backendastramaco.model;
 
+import com.example.backendastramaco.model.audit.BaseEntity;
 import com.example.backendastramaco.model.enums.TipoMaterial;
 import jakarta.persistence.*;
 import lombok.*;
@@ -16,11 +17,9 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Carga {
+public class Carga extends BaseEntity {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    //Eliminado BaseEntity
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "transportista_id", nullable = false)

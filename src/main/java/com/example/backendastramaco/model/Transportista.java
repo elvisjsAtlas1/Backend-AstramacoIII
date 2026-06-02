@@ -1,5 +1,6 @@
 package com.example.backendastramaco.model;
 
+import com.example.backendastramaco.model.audit.BaseEntity;
 import com.example.backendastramaco.model.enums.EstadoTransportista;
 import com.example.backendastramaco.model.enums.TipoTransporte;
 import jakarta.persistence.*;
@@ -10,11 +11,7 @@ import java.util.List;
 @Entity
 @Table(name = "transportistas")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
-public class Transportista {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+public class Transportista extends BaseEntity {
 
     @OneToOne
     @JoinColumn(name = "usuario_id", nullable = false, unique = true)

@@ -6,7 +6,7 @@ export const options = {
   duration: '20s',  // durante 20 segundos
 };
 
-export default function () {
+export default function smokeTest () {
   let res = http.get('http://localhost:8080/v3/api-docs');
 
   check(res, {

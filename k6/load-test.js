@@ -6,7 +6,7 @@ export const options = {
   duration: '5s',
 };
 
-export default function () {
+export default function loadTest() {
   let res = http.get('http://localhost:8080/v3/api-docs');
 
   check(res, {

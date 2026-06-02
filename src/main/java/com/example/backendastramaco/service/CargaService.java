@@ -9,6 +9,9 @@ import com.example.backendastramaco.model.enums.TipoMaterial;
 import com.example.backendastramaco.model.enums.TipoTransporte;
 import com.example.backendastramaco.repository.CargaRepository;
 import com.example.backendastramaco.repository.TransportistaRepository;
+import com.example.backendastramaco.service.audit.AuditService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,11 +30,14 @@ public class CargaService {
 
     private final CargaRepository cargaRepository;
     private final TransportistaRepository transportistaRepository;
+    private final AuditService auditService;
+    private final ObjectMapper objectMapper;
+    private final HttpServletRequest request;
 
     @Transactional
-    public CargaResponseDTO subirCargaActual(Long transportistaId, CargaRequestDTO request) {
+    public CargaResponseDTO subirCargaActual(Long transportistaId, CargaRequestDTO requestDTO) {
         Transportista transportista = obtenerCamioneroValido(transportistaId);
-        validarMaterialCamionero(request.getTipoMaterial());
+        validarMaterialCamionero(requestDTO.getTipoMaterial());
 
         Carga carga = cargaRepository.findByTransportistaId(transportistaId)
                 .orElse(
@@ -40,27 +46,56 @@ public class CargaService {
                                 .build()
                 );
 
-        carga.setTipoMaterial(request.getTipoMaterial());
-        carga.setCantidadDisponible(request.getCantidadDisponible());
+        Carga oldCopy = copiarEntidad(carga);
 
-        return toResponseDTO(cargaRepository.save(carga));
+        carga.setTipoMaterial(requestDTO.getTipoMaterial());
+        carga.setCantidadDisponible(requestDTO.getCantidadDisponible());
+
+        Carga saved = cargaRepository.save(carga);
+
+        // Auditar creación o actualización
+        String accion = oldCopy.getId() == null ? "CREATE" : "UPDATE";
+        auditService.auditCarga(
+                saved.getId(),
+                transportistaId,
+                accion,
+                oldCopy.getId() == null ? null : oldCopy,
+                saved,
+                request
+        );
+
+        return toResponseDTO(saved);
     }
 
     @Transactional
-    public CargaResponseDTO aumentarCargaActual(Long transportistaId, AumentarCargaRequestDTO request) {
+    public CargaResponseDTO aumentarCargaActual(Long transportistaId, AumentarCargaRequestDTO requestDTO) {
         obtenerCamioneroValido(transportistaId);
-        validarMaterialCamionero(request.getTipoMaterial());
+        validarMaterialCamionero(requestDTO.getTipoMaterial());
 
         Carga carga = cargaRepository.findByTransportistaId(transportistaId)
                 .orElseThrow(() -> new RuntimeException(CARGA_NO_REGISTRADA));
 
-        if (!carga.getTipoMaterial().equals(request.getTipoMaterial())) {
+        if (!carga.getTipoMaterial().equals(requestDTO.getTipoMaterial())) {
             throw new IllegalArgumentException(MATERIAL_DISTINTO);
         }
 
-        carga.setCantidadDisponible(carga.getCantidadDisponible() + request.getCantidadAgregar());
+        Carga oldCopy = copiarEntidad(carga);
 
-        return toResponseDTO(cargaRepository.save(carga));
+        carga.setCantidadDisponible(carga.getCantidadDisponible() + requestDTO.getCantidadAgregar());
+
+        Carga saved = cargaRepository.save(carga);
+
+        // Auditar aumento de carga
+        auditService.auditCarga(
+                saved.getId(),
+                transportistaId,
+                "UPDATE",
+                oldCopy,
+                saved,
+                request
+        );
+
+        return toResponseDTO(saved);
     }
 
     @Transactional(readOnly = true)
@@ -80,6 +115,27 @@ public class CargaService {
                 .toList();
     }
 
+    @Transactional
+    public void eliminarCarga(Long id, String username) {
+        Carga existente = cargaRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Carga no encontrada"));
+
+        Carga oldCopy = copiarEntidad(existente);
+
+        // Auditar eliminación
+        auditService.auditCarga(
+                id,
+                existente.getTransportista().getId(),
+                "DELETE",
+                oldCopy,
+                null,
+                request
+        );
+
+        // Soft delete o eliminar físicamente
+        cargaRepository.delete(existente);
+    }
+
     private Transportista obtenerCamioneroValido(Long transportistaId) {
         Transportista transportista = transportistaRepository.findById(transportistaId)
                 .orElseThrow(() -> new RuntimeException(TRANSPORTISTA_NO_EXISTE));
@@ -97,8 +153,6 @@ public class CargaService {
         }
     }
 
-
-
     private CargaResponseDTO toResponseDTO(Carga carga) {
         Transportista transportista = carga.getTransportista();
         return CargaResponseDTO.builder()
@@ -108,5 +162,14 @@ public class CargaService {
                 .tipoMaterial(carga.getTipoMaterial())
                 .cantidadDisponible(carga.getCantidadDisponible())
                 .build();
+    }
+
+    private Carga copiarEntidad(Carga original) {
+        Carga copia = new Carga();
+        copia.setId(original.getId());
+        copia.setTransportista(original.getTransportista());
+        copia.setTipoMaterial(original.getTipoMaterial());
+        copia.setCantidadDisponible(original.getCantidadDisponible());
+        return copia;
     }
 }

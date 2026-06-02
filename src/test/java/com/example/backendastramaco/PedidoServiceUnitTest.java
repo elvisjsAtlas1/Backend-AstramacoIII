@@ -5,12 +5,16 @@ import com.example.backendastramaco.dto.PedidoResponseDTO;
 import com.example.backendastramaco.model.Carga;
 import com.example.backendastramaco.model.Pedido;
 import com.example.backendastramaco.model.Transportista;
+import com.example.backendastramaco.model.enums.EstadoPedido;
 import com.example.backendastramaco.model.enums.TipoMaterial;
 import com.example.backendastramaco.model.enums.TipoTransporte;
 import com.example.backendastramaco.repository.CargaRepository;
 import com.example.backendastramaco.repository.PedidoRepository;
 import com.example.backendastramaco.repository.TransportistaRepository;
 import com.example.backendastramaco.service.PedidoService;
+import com.example.backendastramaco.service.audit.AuditService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -18,6 +22,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -38,12 +43,22 @@ class PedidoServiceUnitTest {
     @Mock
     private CargaRepository cargaRepository;
 
+    @Mock
+    private AuditService auditService;
+
+    @Mock
+    private ObjectMapper objectMapper;
+
+    @Mock
+    private HttpServletRequest request;
+
     @InjectMocks
     private PedidoService pedidoService;
 
     @Test
     @DisplayName("Debe crear pedido para transportista volquetero sin procesar carga")
     void crearPedido_DebeCrearPedidoVolqueteroCorrectamente() {
+        // Arrange
         PedidoRequestDTO dto = new PedidoRequestDTO();
         dto.setClienteNombre("Carlos");
         dto.setClienteTelefono("999888777");
@@ -58,7 +73,7 @@ class PedidoServiceUnitTest {
         dto.setTransportistaId(1L);
 
         Transportista transportista = new Transportista();
-        transportista.setId(1L);
+        ReflectionTestUtils.setField(transportista, "id", 1L);
         transportista.setNombre("Luis");
         transportista.setApellidos("Quispe");
         transportista.setTipoTransporte(TipoTransporte.VOLQUETERO);
@@ -66,12 +81,16 @@ class PedidoServiceUnitTest {
         when(transportistaRepository.findById(1L)).thenReturn(Optional.of(transportista));
         when(pedidoRepository.save(any(Pedido.class))).thenAnswer(invocation -> {
             Pedido pedido = invocation.getArgument(0);
-            pedido.setId(10L);
+            ReflectionTestUtils.setField(pedido, "id", 10L);
             return pedido;
         });
 
+        doNothing().when(auditService).auditPedido(anyLong(), anyString(), any(), any(), any());
+
+        // Act
         PedidoResponseDTO resultado = pedidoService.crearPedido(dto);
 
+        // Assert
         assertNotNull(resultado);
         assertEquals(10L, resultado.getId());
         assertEquals("Carlos", resultado.getClienteNombre());
@@ -92,11 +111,13 @@ class PedidoServiceUnitTest {
         verify(pedidoRepository).save(any(Pedido.class));
         verify(cargaRepository, never()).findByTransportistaId(anyLong());
         verify(cargaRepository, never()).save(any(Carga.class));
+        verify(auditService, times(1)).auditPedido(anyLong(), eq("CREATE"), isNull(), any(), any());
     }
 
     @Test
     @DisplayName("Debe crear pedido camionero y descontar stock de la carga")
     void crearPedido_DebeCrearPedidoCamioneroYDescontarCarga() {
+        // Arrange
         PedidoRequestDTO dto = new PedidoRequestDTO();
         dto.setClienteNombre("Maria");
         dto.setClienteTelefono("999111222");
@@ -111,13 +132,13 @@ class PedidoServiceUnitTest {
         dto.setTransportistaId(2L);
 
         Transportista transportista = new Transportista();
-        transportista.setId(2L);
+        ReflectionTestUtils.setField(transportista, "id", 2L);
         transportista.setNombre("Juan");
         transportista.setApellidos("Perez");
         transportista.setTipoTransporte(TipoTransporte.CAMIONERO);
 
         Carga carga = new Carga();
-        carga.setId(5L);
+        ReflectionTestUtils.setField(carga, "id", 5L);
         carga.setTipoMaterial(TipoMaterial.PANDERETA);
         carga.setCantidadDisponible(100.0);
         carga.setTransportista(transportista);
@@ -127,12 +148,16 @@ class PedidoServiceUnitTest {
         when(cargaRepository.save(any(Carga.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(pedidoRepository.save(any(Pedido.class))).thenAnswer(invocation -> {
             Pedido pedido = invocation.getArgument(0);
-            pedido.setId(20L);
+            ReflectionTestUtils.setField(pedido, "id", 20L);
             return pedido;
         });
 
+        doNothing().when(auditService).auditPedido(anyLong(), anyString(), any(), any(), any());
+
+        // Act
         PedidoResponseDTO resultado = pedidoService.crearPedido(dto);
 
+        // Assert
         assertNotNull(resultado);
         assertEquals(20L, resultado.getId());
         assertEquals("Juan Perez", resultado.getTransportistaNombre());
@@ -145,16 +170,139 @@ class PedidoServiceUnitTest {
         assertEquals(80.0, cargaActualizada.getCantidadDisponible());
 
         verify(pedidoRepository).save(any(Pedido.class));
+        verify(auditService, times(1)).auditPedido(anyLong(), eq("CREATE"), isNull(), any(), any());
+    }
+
+    @Test
+    @DisplayName("Debe actualizar estado del pedido correctamente")
+    void actualizarEstado_DebeActualizarEstadoYAuditar() {
+        // Arrange
+        Long pedidoId = 1L;
+        String nuevoEstado = "ENTREGADO";
+
+        Pedido pedidoExistente = Pedido.builder()
+                .clienteNombre("Cliente")
+                .estado(EstadoPedido.EN_ENVIO)  // Estado inicial
+                .build();
+        ReflectionTestUtils.setField(pedidoExistente, "id", pedidoId);
+
+        ArgumentCaptor<Pedido> oldCopyCaptor = ArgumentCaptor.forClass(Pedido.class);
+
+        when(pedidoRepository.findById(pedidoId)).thenReturn(Optional.of(pedidoExistente));
+        when(pedidoRepository.save(any(Pedido.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        doNothing().when(auditService).auditPedido(anyLong(), anyString(), oldCopyCaptor.capture(), any(), any());
+
+        // Act
+        PedidoResponseDTO resultado = pedidoService.actualizarEstado(pedidoId, nuevoEstado);
+
+        // Assert
+        assertNotNull(resultado);
+        assertEquals(EstadoPedido.ENTREGADO, pedidoExistente.getEstado());
+
+        // Verificar que la copia no tiene ID
+        Pedido oldCopy = oldCopyCaptor.getValue();
+        assertNull(oldCopy.getId(), "La copia del estado anterior no debe tener ID");
+
+        verify(pedidoRepository).findById(pedidoId);
+        verify(pedidoRepository).save(pedidoExistente);
+        verify(auditService, times(1)).auditPedido(eq(pedidoId), eq("UPDATE"), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("Debe eliminar pedido lógicamente (soft delete)")
+    void eliminar_DebeEliminarPedidoLogicamente() {
+        // Arrange
+        Long pedidoId = 1L;
+        String username = "admin";
+
+        Pedido pedidoExistente = Pedido.builder()
+                .clienteNombre("Cliente")
+                .build();
+        ReflectionTestUtils.setField(pedidoExistente, "id", pedidoId);
+
+        ArgumentCaptor<Pedido> oldCopyCaptor = ArgumentCaptor.forClass(Pedido.class);
+
+        when(pedidoRepository.findById(pedidoId)).thenReturn(Optional.of(pedidoExistente));
+        when(pedidoRepository.save(any(Pedido.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        doNothing().when(auditService).auditPedido(anyLong(), anyString(), oldCopyCaptor.capture(), any(), any());
+
+        // Act
+        pedidoService.eliminar(pedidoId, username);
+
+        // Assert
+        assertNotNull(pedidoExistente.getDeletedAt(), "deletedAt debe estar presente");
+        assertEquals(username, pedidoExistente.getDeletedBy(), "deletedBy debe ser el username");
+
+        // Verificar que la copia no tiene ID
+        Pedido oldCopy = oldCopyCaptor.getValue();
+        assertNull(oldCopy.getId(), "La copia para auditoría no debe tener ID");
+
+        verify(pedidoRepository).findById(pedidoId);
+        verify(pedidoRepository).save(pedidoExistente);
+        verify(auditService, times(1)).auditPedido(eq(pedidoId), eq("DELETE"), any(), isNull(), any());
+    }
+
+    @Test
+    @DisplayName("Debe lanzar excepción cuando el estado es inválido")
+    void actualizarEstado_DebeLanzarExcepcion_CuandoEstadoInvalido() {
+        // Arrange
+        Long pedidoId = 1L;
+        String nuevoEstadoInvalido = "ESTADO_INEXISTENTE";
+
+        Pedido pedidoExistente = Pedido.builder()
+                .clienteNombre("Cliente")
+                .estado(EstadoPedido.EN_ENVIO)
+                .build();
+        ReflectionTestUtils.setField(pedidoExistente, "id", pedidoId);
+
+        when(pedidoRepository.findById(pedidoId)).thenReturn(Optional.of(pedidoExistente));
+
+        // Act & Assert
+        assertThrows(IllegalArgumentException.class,
+                () -> pedidoService.actualizarEstado(pedidoId, nuevoEstadoInvalido));
+
+        verify(pedidoRepository).findById(pedidoId);
+        verify(pedidoRepository, never()).save(any());
+        verify(auditService, never()).auditPedido(anyLong(), anyString(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("Debe permitir actualizar a cualquier estado válido")
+    void actualizarEstado_DebePermitirTodosLosEstadosValidos() {
+        // Arrange
+        Long pedidoId = 1L;
+        List<String> estadosValidos = List.of("EN_ENVIO", "EN_DESCARGA", "ENTREGADO", "CANCELADO");
+
+        for (String nuevoEstado : estadosValidos) {
+            Pedido pedidoExistente = Pedido.builder()
+                    .clienteNombre("Cliente")
+                    .estado(EstadoPedido.EN_ENVIO)
+                    .build();
+            ReflectionTestUtils.setField(pedidoExistente, "id", pedidoId);
+
+            when(pedidoRepository.findById(pedidoId)).thenReturn(Optional.of(pedidoExistente));
+            when(pedidoRepository.save(any(Pedido.class))).thenAnswer(invocation -> invocation.getArgument(0));
+            doNothing().when(auditService).auditPedido(anyLong(), anyString(), any(), any(), any());
+
+            // Act
+            PedidoResponseDTO resultado = pedidoService.actualizarEstado(pedidoId, nuevoEstado);
+
+            // Assert
+            assertNotNull(resultado);
+            assertEquals(EstadoPedido.valueOf(nuevoEstado), pedidoExistente.getEstado());
+        }
     }
 
     @Test
     @DisplayName("Debe lanzar excepción cuando no se encuentra el transportista")
     void crearPedido_DebeLanzarExcepcionCuandoTransportistaNoExiste() {
+        // Arrange
         PedidoRequestDTO dto = new PedidoRequestDTO();
         dto.setTransportistaId(99L);
 
         when(transportistaRepository.findById(99L)).thenReturn(Optional.empty());
 
+        // Act & Assert
         RuntimeException ex = assertThrows(RuntimeException.class,
                 () -> pedidoService.crearPedido(dto));
 
@@ -162,46 +310,50 @@ class PedidoServiceUnitTest {
 
         verify(pedidoRepository, never()).save(any(Pedido.class));
         verify(cargaRepository, never()).save(any(Carga.class));
+        verify(auditService, never()).auditPedido(anyLong(), anyString(), any(), any(), any());
     }
 
     @Test
     @DisplayName("Debe lanzar excepción cuando el tipo de transporte no coincide")
     void crearPedido_DebeLanzarExcepcionCuandoTipoNoCoincide() {
+        // Arrange
         PedidoRequestDTO dto = new PedidoRequestDTO();
         dto.setTransportistaId(1L);
         dto.setTipoTransporte(TipoTransporte.CAMIONERO);
 
         Transportista transportista = new Transportista();
-        transportista.setId(1L);
+        ReflectionTestUtils.setField(transportista, "id", 1L);
         transportista.setTipoTransporte(TipoTransporte.VOLQUETERO);
 
         when(transportistaRepository.findById(1L)).thenReturn(Optional.of(transportista));
 
+        // Act & Assert
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> pedidoService.crearPedido(dto));
 
         assertEquals("El tipo de transporte del pedido no coincide con el transportista seleccionado", ex.getMessage());
 
         verify(pedidoRepository, never()).save(any(Pedido.class));
+        verify(auditService, never()).auditPedido(anyLong(), anyString(), any(), any(), any());
     }
 
     @Test
     @DisplayName("Debe lanzar excepción cuando camionero usa material no permitido")
     void crearPedido_DebeLanzarExcepcionCuandoMaterialCamioneroEsInvalido() {
-
+        // Arrange
         PedidoRequestDTO dto = new PedidoRequestDTO();
         dto.setTransportistaId(2L);
         dto.setTipoTransporte(TipoTransporte.CAMIONERO);
-        dto.setMaterial(TipoMaterial.ARENA_FINA); // ❌ inválido
+        dto.setMaterial(TipoMaterial.ARENA_FINA);
         dto.setCantidad(10.0);
 
         Transportista transportista = new Transportista();
-        transportista.setId(2L);
+        ReflectionTestUtils.setField(transportista, "id", 2L);
         transportista.setTipoTransporte(TipoTransporte.CAMIONERO);
 
-        when(transportistaRepository.findById(2L))
-                .thenReturn(Optional.of(transportista));
+        when(transportistaRepository.findById(2L)).thenReturn(Optional.of(transportista));
 
+        // Act & Assert
         IllegalArgumentException ex = assertThrows(
                 IllegalArgumentException.class,
                 () -> pedidoService.crearPedido(dto)
@@ -211,11 +363,14 @@ class PedidoServiceUnitTest {
                 "El transportista camionero solo puede trabajar con materiales PANDERETA o TECHO",
                 ex.getMessage()
         );
+
+        verify(auditService, never()).auditPedido(anyLong(), anyString(), any(), any(), any());
     }
 
     @Test
     @DisplayName("Debe lanzar excepción cuando el camionero no tiene carga registrada")
     void crearPedido_DebeLanzarExcepcionCuandoNoTieneCargaRegistrada() {
+        // Arrange
         PedidoRequestDTO dto = new PedidoRequestDTO();
         dto.setTransportistaId(2L);
         dto.setTipoTransporte(TipoTransporte.CAMIONERO);
@@ -223,23 +378,26 @@ class PedidoServiceUnitTest {
         dto.setCantidad(10.0);
 
         Transportista transportista = new Transportista();
-        transportista.setId(2L);
+        ReflectionTestUtils.setField(transportista, "id", 2L);
         transportista.setTipoTransporte(TipoTransporte.CAMIONERO);
 
         when(transportistaRepository.findById(2L)).thenReturn(Optional.of(transportista));
         when(cargaRepository.findByTransportistaId(2L)).thenReturn(Optional.empty());
 
+        // Act & Assert
         RuntimeException ex = assertThrows(RuntimeException.class,
                 () -> pedidoService.crearPedido(dto));
 
         assertEquals("El transportista no tiene carga registrada", ex.getMessage());
 
         verify(pedidoRepository, never()).save(any(Pedido.class));
+        verify(auditService, never()).auditPedido(anyLong(), anyString(), any(), any(), any());
     }
 
     @Test
     @DisplayName("Debe lanzar excepción cuando el material de la carga no coincide")
     void crearPedido_DebeLanzarExcepcionCuandoMaterialNoCoincideConCarga() {
+        // Arrange
         PedidoRequestDTO dto = new PedidoRequestDTO();
         dto.setTransportistaId(2L);
         dto.setTipoTransporte(TipoTransporte.CAMIONERO);
@@ -247,7 +405,7 @@ class PedidoServiceUnitTest {
         dto.setCantidad(10.0);
 
         Transportista transportista = new Transportista();
-        transportista.setId(2L);
+        ReflectionTestUtils.setField(transportista, "id", 2L);
         transportista.setTipoTransporte(TipoTransporte.CAMIONERO);
 
         Carga carga = new Carga();
@@ -257,6 +415,7 @@ class PedidoServiceUnitTest {
         when(transportistaRepository.findById(2L)).thenReturn(Optional.of(transportista));
         when(cargaRepository.findByTransportistaId(2L)).thenReturn(Optional.of(carga));
 
+        // Act & Assert
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> pedidoService.crearPedido(dto));
 
@@ -264,11 +423,13 @@ class PedidoServiceUnitTest {
 
         verify(pedidoRepository, never()).save(any(Pedido.class));
         verify(cargaRepository, never()).save(any(Carga.class));
+        verify(auditService, never()).auditPedido(anyLong(), anyString(), any(), any(), any());
     }
 
     @Test
     @DisplayName("Debe lanzar excepción cuando el stock es insuficiente")
     void crearPedido_DebeLanzarExcepcionCuandoStockEsInsuficiente() {
+        // Arrange
         PedidoRequestDTO dto = new PedidoRequestDTO();
         dto.setTransportistaId(2L);
         dto.setTipoTransporte(TipoTransporte.CAMIONERO);
@@ -276,7 +437,7 @@ class PedidoServiceUnitTest {
         dto.setCantidad(60.0);
 
         Transportista transportista = new Transportista();
-        transportista.setId(2L);
+        ReflectionTestUtils.setField(transportista, "id", 2L);
         transportista.setTipoTransporte(TipoTransporte.CAMIONERO);
 
         Carga carga = new Carga();
@@ -286,6 +447,7 @@ class PedidoServiceUnitTest {
         when(transportistaRepository.findById(2L)).thenReturn(Optional.of(transportista));
         when(cargaRepository.findByTransportistaId(2L)).thenReturn(Optional.of(carga));
 
+        // Act & Assert
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> pedidoService.crearPedido(dto));
 
@@ -293,18 +455,19 @@ class PedidoServiceUnitTest {
 
         verify(pedidoRepository, never()).save(any(Pedido.class));
         verify(cargaRepository, never()).save(any(Carga.class));
+        verify(auditService, never()).auditPedido(anyLong(), anyString(), any(), any(), any());
     }
 
     @Test
     @DisplayName("Debe listar pedidos convertidos a response DTO")
     void listar_DebeRetornarPedidosConvertidosADto() {
+        // Arrange
         Transportista transportista = new Transportista();
-        transportista.setId(3L);
+        ReflectionTestUtils.setField(transportista, "id", 3L);
         transportista.setNombre("Pedro");
         transportista.setApellidos("Mamani");
 
         Pedido pedido1 = Pedido.builder()
-                .id(1L)
                 .clienteNombre("Cliente 1")
                 .clienteTelefono("111111111")
                 .direccionEnvio("Dir 1")
@@ -318,9 +481,9 @@ class PedidoServiceUnitTest {
                 .transportista(transportista)
                 .codigoVerificacion("1234")
                 .build();
+        ReflectionTestUtils.setField(pedido1, "id", 1L);
 
         Pedido pedido2 = Pedido.builder()
-                .id(2L)
                 .clienteNombre("Cliente 2")
                 .clienteTelefono("222222222")
                 .direccionEnvio("Dir 2")
@@ -334,15 +497,20 @@ class PedidoServiceUnitTest {
                 .transportista(transportista)
                 .codigoVerificacion("5678")
                 .build();
+        ReflectionTestUtils.setField(pedido2, "id", 2L);
 
         when(pedidoRepository.findAll()).thenReturn(List.of(pedido1, pedido2));
 
+        // Act
         List<PedidoResponseDTO> resultado = pedidoService.listar();
 
+        // Assert
         assertNotNull(resultado);
         assertEquals(2, resultado.size());
+        assertEquals(1L, resultado.get(0).getId());
         assertEquals("Cliente 1", resultado.get(0).getClienteNombre());
         assertEquals("Pedro Mamani", resultado.get(0).getTransportistaNombre());
+        assertEquals(2L, resultado.get(1).getId());
         assertEquals("Cliente 2", resultado.get(1).getClienteNombre());
         assertEquals("Pedro Mamani", resultado.get(1).getTransportistaNombre());
 
@@ -352,13 +520,13 @@ class PedidoServiceUnitTest {
     @Test
     @DisplayName("Debe listar pedidos por transportista ordenados por hora de envío")
     void listarPorTransportista_DebeRetornarPedidosDelTransportista() {
+        // Arrange
         Transportista transportista = new Transportista();
-        transportista.setId(4L);
+        ReflectionTestUtils.setField(transportista, "id", 4L);
         transportista.setNombre("Rene");
         transportista.setApellidos("Flores");
 
         Pedido pedido = Pedido.builder()
-                .id(7L)
                 .clienteNombre("Lucia")
                 .clienteTelefono("987654321")
                 .direccionEnvio("Av. Siempre Viva")
@@ -372,12 +540,15 @@ class PedidoServiceUnitTest {
                 .transportista(transportista)
                 .codigoVerificacion("1234")
                 .build();
+        ReflectionTestUtils.setField(pedido, "id", 7L);
 
         when(pedidoRepository.findByTransportistaIdOrderByHoraEnvioDesc(4L))
                 .thenReturn(List.of(pedido));
 
+        // Act
         List<PedidoResponseDTO> resultado = pedidoService.listarPorTransportista(4L);
 
+        // Assert
         assertNotNull(resultado);
         assertEquals(1, resultado.size());
         assertEquals(7L, resultado.get(0).getId());
@@ -390,13 +561,13 @@ class PedidoServiceUnitTest {
     @Test
     @DisplayName("Debe retornar nombre completo vacío limpio cuando transportista no tiene apellidos o nombre completos")
     void listar_DebeMapearNombreCompletoSinEspaciosExtra() {
+        // Arrange
         Transportista transportista = new Transportista();
-        transportista.setId(8L);
+        ReflectionTestUtils.setField(transportista, "id", 8L);
         transportista.setNombre("  Joel ");
         transportista.setApellidos(" ");
 
         Pedido pedido = Pedido.builder()
-                .id(9L)
                 .clienteNombre("Mario")
                 .clienteTelefono("999999999")
                 .direccionEnvio("Jr. Sol")
@@ -410,11 +581,14 @@ class PedidoServiceUnitTest {
                 .transportista(transportista)
                 .codigoVerificacion("2222")
                 .build();
+        ReflectionTestUtils.setField(pedido, "id", 9L);
 
         when(pedidoRepository.findAll()).thenReturn(List.of(pedido));
 
+        // Act
         List<PedidoResponseDTO> resultado = pedidoService.listar();
 
+        // Assert
         assertEquals(1, resultado.size());
         assertEquals("Joel", resultado.get(0).getTransportistaNombre());
     }
