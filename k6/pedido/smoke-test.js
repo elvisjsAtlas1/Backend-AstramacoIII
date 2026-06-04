@@ -1,0 +1,69 @@
+import http from 'k6/http';
+import { check, sleep } from 'k6';
+
+const BASE_URL = 'http://localhost:8080';
+const LOGIN_URL = `${BASE_URL}/api/auth/login`;
+const PEDIDOS_URL = `${BASE_URL}/api/pedidos`;
+
+const LOGIN_PAYLOAD = JSON.stringify({
+  username: 'admin',
+  password: 'admin123'
+});
+
+export const options = {
+  vus: 20,
+  duration: '20s',
+};
+
+export function setup() {
+  const loginRes = http.post(LOGIN_URL, LOGIN_PAYLOAD, {
+    headers: { 'Content-Type': 'application/json' }
+  });
+
+  if (loginRes.status !== 200) {
+    console.error('Error en login:', loginRes.body);
+    return { token: null };
+  }
+
+  const token = JSON.parse(loginRes.body).token;
+  return { token };
+}
+
+export default function (data) {
+  const { token } = data;
+  if (!token) return;
+
+  const params = {
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    }
+  };
+
+  const uniqueId = `${__VU}_${__ITER}_${Date.now()}`;
+  const createPayload = JSON.stringify({
+    transportistaId: 1,
+    clienteNombre: `Smoke ${uniqueId}`,
+    clienteTelefono: `888${uniqueId}`.slice(0, 9),
+    direccionEnvio: `Av. Siempre Viva ${uniqueId}`,
+    tipoTransporte: 'CAMIONERO',
+    material: 'TECHO',           // También válido para camionero
+    cantidad: 3,
+    montoTotal: 300.00,
+    adelanto: 50.00,
+    piso: 1,
+    horaEnvio: '2026-06-04T11:00:00'
+  });
+
+  let createRes = http.post(PEDIDOS_URL, createPayload, params);
+  check(createRes, { 'POST status 200': (r) => r.status === 200 });
+
+  let id = null;
+  try { id = JSON.parse(createRes.body).id; } catch(e) {}
+
+  if (id) {
+    let deleteRes = http.del(`${PEDIDOS_URL}/${id}`, null, params);
+    check(deleteRes, { 'DELETE status 200': (r) => r.status === 200 });
+  }
+  sleep(1);
+}

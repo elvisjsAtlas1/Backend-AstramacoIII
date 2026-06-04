@@ -4,9 +4,11 @@ import com.example.backendastramaco.model.audit.BaseEntity;
 import com.example.backendastramaco.model.enums.Rol;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.Where;
 
 @Entity
 @Table(name = "usuarios")
+@Where(clause = "deleted_at IS NULL")
 @Getter
 @Setter
 @NoArgsConstructor
