@@ -4,6 +4,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 
 public interface AuditoriaUsuarioRepository extends JpaRepository<AuditoriaUsuario, Long> {
-    List<AuditoriaUsuario> findByUsuarioId(Long usuarioId);
-    List<AuditoriaUsuario> findByAccion(String accion);
+    List<AuditoriaUsuario> findAllByOrderByFechaHoraDesc();
+    List<AuditoriaUsuario> findByUsuarioIdOrderByFechaHoraDesc(Long usuarioId);
 }

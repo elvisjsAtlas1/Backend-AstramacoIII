@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.media.Content;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -31,5 +32,38 @@ public class UsuarioController {
         usuario.setPassword(dto.getPassword());
         usuario.setRol(dto.getRol());
         return usuarioService.crear(usuario);
+    }
+
+    @DeleteMapping("/{id}")
+    @Operation(summary = "Eliminar usuario", description = "Elimina (soft delete) un usuario por su ID")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "204", description = "Usuario eliminado exitosamente"),
+            @ApiResponse(responseCode = "404", description = "Usuario no encontrado")
+    })
+    public ResponseEntity<Void> eliminar(@PathVariable Long id) {
+        try {
+            usuarioService.eliminar(id, "usuario_sistema");
+            return ResponseEntity.noContent().build();
+        } catch (RuntimeException e) {
+            if (e.getMessage().equals("Usuario no encontrado")) {
+                return ResponseEntity.notFound().build();
+            }
+            throw e; // otras excepciones no manejadas
+        }
+    }
+
+    @PutMapping("/{id}")
+    @Operation(summary = "Actualizar usuario", description = "Actualiza los datos de un usuario existente")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Usuario actualizado"),
+            @ApiResponse(responseCode = "404", description = "Usuario no encontrado")
+    })
+    public Usuario actualizar(@PathVariable Long id, @RequestBody UsuarioRequestDTO dto) {
+        Usuario nuevosDatos = new Usuario();
+        nuevosDatos.setUsername(dto.getUsername());
+        nuevosDatos.setPassword(dto.getPassword());
+        nuevosDatos.setRol(dto.getRol());
+        nuevosDatos.setActivo(true);  // o según necesites
+        return usuarioService.actualizar(id, nuevosDatos);
     }
 }
