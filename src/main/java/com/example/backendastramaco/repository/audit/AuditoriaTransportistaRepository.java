@@ -4,6 +4,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 
 public interface AuditoriaTransportistaRepository extends JpaRepository<AuditoriaTransportista, Long> {
-    List<AuditoriaTransportista> findByTransportistaId(Long transportistaId);
-    List<AuditoriaTransportista> findByAccion(String accion);
+    List<AuditoriaTransportista> findAllByOrderByFechaHoraDesc();
+    List<AuditoriaTransportista> findByTransportistaIdOrderByFechaHoraDesc(Long transportistaId);
 }

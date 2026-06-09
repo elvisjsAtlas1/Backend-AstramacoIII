@@ -5,11 +5,13 @@ import com.example.backendastramaco.model.enums.EstadoTransportista;
 import com.example.backendastramaco.model.enums.TipoTransporte;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.Where;
 
 import java.util.List;
 
 @Entity
 @Table(name = "transportistas")
+@Where(clause = "deleted_at IS NULL")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class Transportista extends BaseEntity {
 

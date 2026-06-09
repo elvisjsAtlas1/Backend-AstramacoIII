@@ -1,5 +1,6 @@
 package com.example.backendastramaco.service.audit;
 
+import com.example.backendastramaco.model.Usuario;
 import com.example.backendastramaco.model.audit.*;
 import com.example.backendastramaco.repository.audit.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -71,8 +72,28 @@ public class AuditService {
         audit.setDatosCompletosAnteriores(convertToJson(oldData));
         audit.setDatosCompletosNuevos(convertToJson(newData));
 
+        // Mapeo de campos específicos
+        mapUsuarioFields(audit, oldData, newData);
+
         auditoriaUsuarioRepo.save(audit);
-        log.debug("Auditoría de usuario registrada - ID: {}, Acción: {}", usuarioId, accion);
+    }
+
+    private void mapUsuarioFields(AuditoriaUsuario audit, Object oldData, Object newData) {
+        if (oldData instanceof Usuario old) {
+            audit.setUsernameAnterior(old.getUsername());
+            audit.setRolAnterior(old.getRol() != null ? old.getRol().name() : null);
+            // Para password, solo indicamos si cambió (no guardar el valor real)
+            if (newData instanceof Usuario newU && old.getPassword() != null && newU.getPassword() != null
+                    && !old.getPassword().equals(newU.getPassword())) {
+                audit.setPasswordCambiada("SI");
+            } else {
+                audit.setPasswordCambiada("NO");
+            }
+        }
+        if (newData instanceof Usuario newU) {
+            audit.setUsernameNuevo(newU.getUsername());
+            audit.setRolNuevo(newU.getRol() != null ? newU.getRol().name() : null);
+        }
     }
 
     // Auditoría para Transportistas

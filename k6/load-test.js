@@ -13,3 +13,4 @@ export default function loadTest() {
     'status es 200': (r) => r.status === 200,
   });
 }
+
