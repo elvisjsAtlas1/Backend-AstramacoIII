@@ -11,7 +11,7 @@ import java.util.List;
 
 @Entity
 @Table(name = "transportistas")
-@Where(clause = "deleted_at IS NULL")
+@Deprecated
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class Transportista extends BaseEntity {
 

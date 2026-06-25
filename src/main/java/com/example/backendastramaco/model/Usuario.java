@@ -8,7 +8,7 @@ import org.hibernate.annotations.Where;
 
 @Entity
 @Table(name = "usuarios")
-@Where(clause = "deleted_at IS NULL")
+@Deprecated
 @Getter
 @Setter
 @NoArgsConstructor
