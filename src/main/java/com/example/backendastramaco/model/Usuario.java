@@ -4,19 +4,16 @@ import com.example.backendastramaco.model.audit.BaseEntity;
 import com.example.backendastramaco.model.enums.Rol;
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.annotations.Where;
+
 
 @Entity
 @Table(name = "usuarios")
-@Deprecated
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 public class Usuario extends BaseEntity {
-
-    //id eliminado porque esta en BaseEntity
 
     @Column(nullable = false, unique = true, length = 50)
     private String username;

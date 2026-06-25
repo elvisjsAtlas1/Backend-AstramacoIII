@@ -3,6 +3,9 @@ package com.example.backendastramaco.service;
 import com.example.backendastramaco.dto.TransportistaRequestDTO;
 import com.example.backendastramaco.exception.DuplicateResourceException;
 import com.example.backendastramaco.exception.ResourceNotFoundException;
+import com.example.backendastramaco.exception.AuditException;
+import com.example.backendastramaco.exception.TransportistaAlreadyDeletedException;
+import com.example.backendastramaco.exception.TransportistaNotDeletedException;
 import com.example.backendastramaco.model.Transportista;
 import com.example.backendastramaco.model.Usuario;
 import com.example.backendastramaco.model.audit.AuditoriaTransportista;
@@ -12,6 +15,7 @@ import com.example.backendastramaco.model.enums.TipoTransporte;
 import com.example.backendastramaco.repository.TransportistaRepository;
 import com.example.backendastramaco.repository.UsuarioRepository;
 import com.example.backendastramaco.repository.audit.AuditoriaTransportistaRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -24,7 +28,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -33,6 +37,55 @@ import java.util.Map;
 @RequiredArgsConstructor
 @Slf4j
 public class TransportistaService {
+
+    // Constantes para acciones de auditoría
+    private static final String ACTION_CREATE = "CREATE";
+    private static final String ACTION_UPDATE = "UPDATE";
+    private static final String ACTION_UPDATE_ESTADO = "UPDATE_ESTADO";
+    private static final String ACTION_DELETE = "DELETE";
+    private static final String ACTION_RESTORE = "RESTORE";
+    private static final String ACTION_DELETE_PERMANENT = "DELETE_PERMANENT";
+
+    // Constantes para claves de mapas
+    private static final String KEY_ID = "id";
+    private static final String KEY_NOMBRE = "nombre";
+    private static final String KEY_APELLIDOS = "apellidos";
+    private static final String KEY_DNI = "dni";
+    private static final String KEY_EDAD = "edad";
+    private static final String KEY_TIPO_TRANSPORTE = "tipoTransporte";
+    private static final String KEY_PLACA = "placa";
+    private static final String KEY_VEHICULO_INFO = "vehiculoInfo";
+    private static final String KEY_CAPACIDAD = "capacidad";
+    private static final String KEY_ESTADO = "estado";
+    private static final String KEY_CREATED_AT = "createdAt";
+    private static final String KEY_UPDATED_AT = "updatedAt";
+    private static final String KEY_DELETED_AT = "deletedAt";
+    private static final String KEY_DELETED_BY = "deletedBy";
+
+    // Constantes para mensajes
+    private static final String MSG_TRANSPORTISTA_NOT_FOUND = "Transportista no encontrado con ID: ";
+    private static final String MSG_TRANSPORTISTA_NOT_FOUND_BY_DNI = "Transportista no encontrado con DNI: ";
+    private static final String MSG_TRANSPORTISTA_NOT_FOUND_BY_USER = "Transportista no encontrado para el usuario: ";
+    private static final String MSG_USUARIO_NOT_FOUND = "Usuario no encontrado con ID: ";
+    private static final String MSG_DUPLICATE_DNI = "El DNI '%s' ya está registrado";
+    private static final String MSG_DUPLICATE_PLACA = "La placa '%s' ya está registrada";
+    private static final String MSG_TRANSPORTISTA_ALREADY_DELETED = "El transportista con ID %d ya está eliminado";
+    private static final String MSG_TRANSPORTISTA_NOT_DELETED = "El transportista con ID %d no está eliminado";
+    private static final String MSG_AUDIT_SAVE_ERROR = "Error al guardar auditoría para transportista ";
+    private static final String MSG_AUDIT_UPDATE_ERROR = "Error al guardar auditoría de actualización para transportista ";
+    private static final String MSG_SERIALIZATION_ERROR = "Error al serializar datos del transportista";
+
+    // Constantes para valores
+    private static final String DEFAULT_IP = "0.0.0.0";
+    private static final String SYSTEM_USER = "sistema";
+    private static final String UNKNOWN = "unknown";
+    private static final String USERNAME_SEPARATOR = ".";
+    private static final double CAPACIDAD_CAMIONERO = 0.0;
+
+    // Constantes para headers HTTP
+    private static final String HEADER_X_FORWARDED_FOR = "X-Forwarded-For";
+    private static final String HEADER_PROXY_CLIENT_IP = "Proxy-Client-IP";
+    private static final String HEADER_WL_PROXY_CLIENT_IP = "WL-Proxy-Client-IP";
 
     private final TransportistaRepository transportistaRepository;
     private final UsuarioRepository usuarioRepository;
@@ -47,15 +100,15 @@ public class TransportistaService {
 
         // Validar DNI único
         if (transportistaRepository.existsByDni(dto.getDni())) {
-            throw new DuplicateResourceException("El DNI '" + dto.getDni() + "' ya está registrado");
+            throw new DuplicateResourceException(String.format(MSG_DUPLICATE_DNI, dto.getDni()));
         }
 
         // Validar placa única
         if (transportistaRepository.existsByPlaca(dto.getPlaca())) {
-            throw new DuplicateResourceException("La placa '" + dto.getPlaca() + "' ya está registrada");
+            throw new DuplicateResourceException(String.format(MSG_DUPLICATE_PLACA, dto.getPlaca()));
         }
 
-        // ✅ CREAR USUARIO AUTOMÁTICAMENTE
+        // CREAR USUARIO AUTOMÁTICAMENTE
         Usuario usuario = new Usuario();
         String username = generarUsernameUnico(dto.getNombre(), dto.getApellidos());
         usuario.setUsername(username);
@@ -76,7 +129,7 @@ public class TransportistaService {
 
         // Si es CAMIONERO, capacidad es 0
         if (dto.getTipoTransporte() == TipoTransporte.CAMIONERO) {
-            t.setCapacidad(0.0);
+            t.setCapacidad(CAPACIDAD_CAMIONERO);
         } else {
             t.setCapacidad(dto.getCapacidad());
         }
@@ -89,7 +142,7 @@ public class TransportistaService {
         // Auditar creación
         auditarAccion(
                 saved.getId(),
-                "CREATE",
+                ACTION_CREATE,
                 null,
                 saved
         );
@@ -135,23 +188,23 @@ public class TransportistaService {
     public Transportista obtenerPorId(Long id) {
         log.debug("Obteniendo transportista por ID: {}", id);
         return transportistaRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Transportista no encontrado con ID: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException(MSG_TRANSPORTISTA_NOT_FOUND + id));
     }
 
     @Transactional(readOnly = true)
     public Transportista obtenerPorDni(String dni) {
         log.debug("Obteniendo transportista por DNI: {}", dni);
         return transportistaRepository.findByDniAndDeletedAtIsNull(dni)
-                .orElseThrow(() -> new ResourceNotFoundException("Transportista no encontrado con DNI: " + dni));
+                .orElseThrow(() -> new ResourceNotFoundException(MSG_TRANSPORTISTA_NOT_FOUND_BY_DNI + dni));
     }
 
     @Transactional(readOnly = true)
     public Transportista obtenerPorUsuarioId(Long usuarioId) {
         log.debug("Obteniendo transportista por usuario ID: {}", usuarioId);
         Usuario usuario = usuarioRepository.findById(usuarioId)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado con ID: " + usuarioId));
+                .orElseThrow(() -> new ResourceNotFoundException(MSG_USUARIO_NOT_FOUND + usuarioId));
         return transportistaRepository.findByUsuarioAndDeletedAtIsNull(usuario)
-                .orElseThrow(() -> new ResourceNotFoundException("Transportista no encontrado para el usuario: " + usuarioId));
+                .orElseThrow(() -> new ResourceNotFoundException(MSG_TRANSPORTISTA_NOT_FOUND_BY_USER + usuarioId));
     }
 
     @Transactional(readOnly = true)
@@ -165,18 +218,18 @@ public class TransportistaService {
         log.info("Actualizando transportista con ID: {}", id);
 
         Transportista existente = transportistaRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Transportista no encontrado con ID: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException(MSG_TRANSPORTISTA_NOT_FOUND + id));
 
         // Validar DNI único (excepto el mismo)
         if (!existente.getDni().equals(dto.getDni()) &&
                 transportistaRepository.existsByDni(dto.getDni())) {
-            throw new DuplicateResourceException("El DNI '" + dto.getDni() + "' ya está registrado");
+            throw new DuplicateResourceException(String.format(MSG_DUPLICATE_DNI, dto.getDni()));
         }
 
         // Validar placa única (excepto el mismo)
         if (!existente.getPlaca().equals(dto.getPlaca()) &&
                 transportistaRepository.existsByPlaca(dto.getPlaca())) {
-            throw new DuplicateResourceException("La placa '" + dto.getPlaca() + "' ya está registrada");
+            throw new DuplicateResourceException(String.format(MSG_DUPLICATE_PLACA, dto.getPlaca()));
         }
 
         // Guardar copia del estado anterior para auditoría
@@ -191,9 +244,9 @@ public class TransportistaService {
         existente.setPlaca(dto.getPlaca());
         existente.setVehiculoInfo(dto.getVehiculoInfo());
 
-        // ✅ Si es CAMIONERO, capacidad es 0 (no aplica)
+        // Si es CAMIONERO, capacidad es 0 (no aplica)
         if (dto.getTipoTransporte() == TipoTransporte.CAMIONERO) {
-            existente.setCapacidad(0.0);
+            existente.setCapacidad(CAPACIDAD_CAMIONERO);
         } else {
             existente.setCapacidad(dto.getCapacidad());
         }
@@ -212,7 +265,7 @@ public class TransportistaService {
         log.info("Cambiando estado del transportista con ID: {} a {}", id, estado);
 
         Transportista transportista = transportistaRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Transportista no encontrado con ID: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException(MSG_TRANSPORTISTA_NOT_FOUND + id));
 
         Transportista oldCopy = copiarEntidad(transportista);
         transportista.setEstado(EstadoTransportista.valueOf(estado.toUpperCase()));
@@ -221,7 +274,7 @@ public class TransportistaService {
         // Auditar cambio de estado
         auditarAccion(
                 id,
-                "UPDATE_ESTADO",
+                ACTION_UPDATE_ESTADO,
                 oldCopy,
                 transportista
         );
@@ -234,10 +287,12 @@ public class TransportistaService {
         log.info("Eliminando (soft delete) transportista con ID: {}", id);
 
         Transportista existente = transportistaRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Transportista no encontrado con ID: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException(MSG_TRANSPORTISTA_NOT_FOUND + id));
 
         if (existente.getDeletedAt() != null) {
-            throw new RuntimeException("El transportista ya está eliminado");
+            throw new TransportistaAlreadyDeletedException(
+                    String.format(MSG_TRANSPORTISTA_ALREADY_DELETED, id)
+            );
         }
 
         // Guardar copia para auditoría
@@ -252,7 +307,7 @@ public class TransportistaService {
         // Auditar eliminación
         auditarAccion(
                 id,
-                "DELETE",
+                ACTION_DELETE,
                 oldCopy,
                 null
         );
@@ -265,10 +320,12 @@ public class TransportistaService {
         log.info("Restaurando transportista con ID: {}", id);
 
         Transportista transportista = transportistaRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Transportista no encontrado con ID: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException(MSG_TRANSPORTISTA_NOT_FOUND + id));
 
         if (transportista.getDeletedAt() == null) {
-            throw new RuntimeException("El transportista no está eliminado");
+            throw new TransportistaNotDeletedException(
+                    String.format(MSG_TRANSPORTISTA_NOT_DELETED, id)
+            );
         }
 
         Transportista oldCopy = copiarEntidad(transportista);
@@ -283,7 +340,7 @@ public class TransportistaService {
         // Auditar restauración
         auditarAccion(
                 id,
-                "RESTORE",
+                ACTION_RESTORE,
                 oldCopy,
                 transportista
         );
@@ -296,7 +353,7 @@ public class TransportistaService {
         log.info("Eliminando permanentemente transportista con ID: {}", id);
 
         Transportista transportista = transportistaRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Transportista no encontrado con ID: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException(MSG_TRANSPORTISTA_NOT_FOUND + id));
 
         // Guardar copia para auditoría antes de eliminar
         Transportista oldCopy = copiarEntidad(transportista);
@@ -304,7 +361,7 @@ public class TransportistaService {
         // Auditar eliminación permanente
         auditarAccion(
                 id,
-                "DELETE_PERMANENT",
+                ACTION_DELETE_PERMANENT,
                 oldCopy,
                 null
         );
@@ -317,153 +374,120 @@ public class TransportistaService {
 
     private void auditarAccion(Long transportistaId, String accion, Transportista oldData, Transportista newData) {
         try {
-            AuditoriaTransportista auditoria = new AuditoriaTransportista();
-            auditoria.setTransportistaId(transportistaId);
-            auditoria.setAccion(accion);
-            auditoria.setUsername(getCurrentUsername());
-            auditoria.setFechaHora(LocalDateTime.now());
-            auditoria.setIpAddress(getClientIP());
+            AuditoriaTransportista auditoria = crearAuditoriaBase(transportistaId, accion);
 
             if (oldData != null) {
-                auditoria.setNombreAnterior(oldData.getNombre());
-                auditoria.setApellidosAnterior(oldData.getApellidos());
-                auditoria.setDniAnterior(oldData.getDni());
-                auditoria.setEdadAnterior(oldData.getEdad());
-                auditoria.setTipoTransporteAnterior(oldData.getTipoTransporte() != null ? oldData.getTipoTransporte().name() : null);
-                auditoria.setPlacaAnterior(oldData.getPlaca());
-                auditoria.setVehiculoInfoAnterior(oldData.getVehiculoInfo());
-                auditoria.setCapacidadAnterior(oldData.getCapacidad());
-                auditoria.setEstadoAnterior(oldData.getEstado() != null ? oldData.getEstado().name() : null);
-
-                try {
-                    Map<String, Object> oldMap = new HashMap<>();
-                    oldMap.put("id", oldData.getId());
-                    oldMap.put("nombre", oldData.getNombre());
-                    oldMap.put("apellidos", oldData.getApellidos());
-                    oldMap.put("dni", oldData.getDni());
-                    oldMap.put("edad", oldData.getEdad());
-                    oldMap.put("tipoTransporte", oldData.getTipoTransporte());
-                    oldMap.put("placa", oldData.getPlaca());
-                    oldMap.put("vehiculoInfo", oldData.getVehiculoInfo());
-                    oldMap.put("capacidad", oldData.getCapacidad());
-                    oldMap.put("estado", oldData.getEstado());
-                    oldMap.put("createdAt", oldData.getCreatedAt());
-                    oldMap.put("deletedAt", oldData.getDeletedAt());
-                    oldMap.put("deletedBy", oldData.getDeletedBy());
-                    auditoria.setDatosCompletosAnteriores(objectMapper.writeValueAsString(oldMap));
-                } catch (Exception e) {
-                    log.error("Error al serializar datos anteriores", e);
-                }
+                mapearDatosAnteriores(auditoria, oldData);
+                auditoria.setDatosCompletosAnteriores(serializarTransportista(oldData));
             }
 
             if (newData != null) {
-                auditoria.setNombreNuevo(newData.getNombre());
-                auditoria.setApellidosNuevo(newData.getApellidos());
-                auditoria.setDniNuevo(newData.getDni());
-                auditoria.setEdadNuevo(newData.getEdad());
-                auditoria.setTipoTransporteNuevo(newData.getTipoTransporte() != null ? newData.getTipoTransporte().name() : null);
-                auditoria.setPlacaNuevo(newData.getPlaca());
-                auditoria.setVehiculoInfoNuevo(newData.getVehiculoInfo());
-                auditoria.setCapacidadNuevo(newData.getCapacidad());
-                auditoria.setEstadoNuevo(newData.getEstado() != null ? newData.getEstado().name() : null);
-
-                try {
-                    Map<String, Object> newMap = new HashMap<>();
-                    newMap.put("id", newData.getId());
-                    newMap.put("nombre", newData.getNombre());
-                    newMap.put("apellidos", newData.getApellidos());
-                    newMap.put("dni", newData.getDni());
-                    newMap.put("edad", newData.getEdad());
-                    newMap.put("tipoTransporte", newData.getTipoTransporte());
-                    newMap.put("placa", newData.getPlaca());
-                    newMap.put("vehiculoInfo", newData.getVehiculoInfo());
-                    newMap.put("capacidad", newData.getCapacidad());
-                    newMap.put("estado", newData.getEstado());
-                    newMap.put("createdAt", newData.getCreatedAt());
-                    newMap.put("deletedAt", newData.getDeletedAt());
-                    newMap.put("deletedBy", newData.getDeletedBy());
-                    auditoria.setDatosCompletosNuevos(objectMapper.writeValueAsString(newMap));
-                } catch (Exception e) {
-                    log.error("Error al serializar datos nuevos", e);
-                }
+                mapearDatosNuevos(auditoria, newData);
+                auditoria.setDatosCompletosNuevos(serializarTransportista(newData));
             }
 
             auditoriaRepository.save(auditoria);
             log.debug("Auditoría guardada para transportista {}: {}", transportistaId, accion);
         } catch (Exception e) {
-            log.error("Error al guardar auditoría para transportista {}: {}", transportistaId, e.getMessage());
+            log.error(MSG_AUDIT_SAVE_ERROR + "{}: {}", transportistaId, e.getMessage());
+            throw new AuditException(MSG_AUDIT_SAVE_ERROR + transportistaId, e);
         }
     }
 
     private void auditarActualizacion(Transportista oldData, Transportista newData) {
         try {
-            AuditoriaTransportista auditoria = new AuditoriaTransportista();
-            auditoria.setTransportistaId(newData.getId());
-            auditoria.setAccion("UPDATE");
-            auditoria.setUsername(getCurrentUsername());
-            auditoria.setFechaHora(LocalDateTime.now());
-            auditoria.setIpAddress(getClientIP());
+            AuditoriaTransportista auditoria = crearAuditoriaBase(newData.getId(), ACTION_UPDATE);
 
-            // Datos anteriores
-            auditoria.setNombreAnterior(oldData.getNombre());
-            auditoria.setApellidosAnterior(oldData.getApellidos());
-            auditoria.setDniAnterior(oldData.getDni());
-            auditoria.setEdadAnterior(oldData.getEdad());
-            auditoria.setTipoTransporteAnterior(oldData.getTipoTransporte() != null ? oldData.getTipoTransporte().name() : null);
-            auditoria.setPlacaAnterior(oldData.getPlaca());
-            auditoria.setVehiculoInfoAnterior(oldData.getVehiculoInfo());
-            auditoria.setCapacidadAnterior(oldData.getCapacidad());
-            auditoria.setEstadoAnterior(oldData.getEstado() != null ? oldData.getEstado().name() : null);
+            mapearDatosAnteriores(auditoria, oldData);
+            mapearDatosNuevos(auditoria, newData);
 
-            // Datos nuevos
-            auditoria.setNombreNuevo(newData.getNombre());
-            auditoria.setApellidosNuevo(newData.getApellidos());
-            auditoria.setDniNuevo(newData.getDni());
-            auditoria.setEdadNuevo(newData.getEdad());
-            auditoria.setTipoTransporteNuevo(newData.getTipoTransporte() != null ? newData.getTipoTransporte().name() : null);
-            auditoria.setPlacaNuevo(newData.getPlaca());
-            auditoria.setVehiculoInfoNuevo(newData.getVehiculoInfo());
-            auditoria.setCapacidadNuevo(newData.getCapacidad());
-            auditoria.setEstadoNuevo(newData.getEstado() != null ? newData.getEstado().name() : null);
-
-            try {
-                Map<String, Object> oldMap = new HashMap<>();
-                oldMap.put("id", oldData.getId());
-                oldMap.put("nombre", oldData.getNombre());
-                oldMap.put("apellidos", oldData.getApellidos());
-                oldMap.put("dni", oldData.getDni());
-                oldMap.put("edad", oldData.getEdad());
-                oldMap.put("tipoTransporte", oldData.getTipoTransporte());
-                oldMap.put("placa", oldData.getPlaca());
-                oldMap.put("vehiculoInfo", oldData.getVehiculoInfo());
-                oldMap.put("capacidad", oldData.getCapacidad());
-                oldMap.put("estado", oldData.getEstado());
-                oldMap.put("createdAt", oldData.getCreatedAt());
-                oldMap.put("updatedAt", oldData.getUpdatedAt());
-                auditoria.setDatosCompletosAnteriores(objectMapper.writeValueAsString(oldMap));
-
-                Map<String, Object> newMap = new HashMap<>();
-                newMap.put("id", newData.getId());
-                newMap.put("nombre", newData.getNombre());
-                newMap.put("apellidos", newData.getApellidos());
-                newMap.put("dni", newData.getDni());
-                newMap.put("edad", newData.getEdad());
-                newMap.put("tipoTransporte", newData.getTipoTransporte());
-                newMap.put("placa", newData.getPlaca());
-                newMap.put("vehiculoInfo", newData.getVehiculoInfo());
-                newMap.put("capacidad", newData.getCapacidad());
-                newMap.put("estado", newData.getEstado());
-                newMap.put("createdAt", newData.getCreatedAt());
-                newMap.put("updatedAt", newData.getUpdatedAt());
-                auditoria.setDatosCompletosNuevos(objectMapper.writeValueAsString(newMap));
-            } catch (Exception e) {
-                log.error("Error al serializar datos para auditoría", e);
-            }
+            auditoria.setDatosCompletosAnteriores(serializarTransportistaParaActualizacion(oldData));
+            auditoria.setDatosCompletosNuevos(serializarTransportistaParaActualizacion(newData));
 
             auditoriaRepository.save(auditoria);
             log.debug("Auditoría de actualización guardada para transportista {}", newData.getId());
         } catch (Exception e) {
-            log.error("Error al guardar auditoría de actualización", e);
+            log.error(MSG_AUDIT_UPDATE_ERROR + "{}", newData.getId(), e);
+            throw new AuditException(MSG_AUDIT_UPDATE_ERROR + newData.getId(), e);
+        }
+    }
+
+    private AuditoriaTransportista crearAuditoriaBase(Long transportistaId, String accion) {
+        AuditoriaTransportista auditoria = new AuditoriaTransportista();
+        auditoria.setTransportistaId(transportistaId);
+        auditoria.setAccion(accion);
+        auditoria.setUsername(getCurrentUsername());
+        auditoria.setFechaHora(LocalDateTime.now());
+        auditoria.setIpAddress(getClientIP());
+        return auditoria;
+    }
+
+    private void mapearDatosAnteriores(AuditoriaTransportista auditoria, Transportista data) {
+        auditoria.setNombreAnterior(data.getNombre());
+        auditoria.setApellidosAnterior(data.getApellidos());
+        auditoria.setDniAnterior(data.getDni());
+        auditoria.setEdadAnterior(data.getEdad());
+        auditoria.setTipoTransporteAnterior(data.getTipoTransporte() != null ? data.getTipoTransporte().name() : null);
+        auditoria.setPlacaAnterior(data.getPlaca());
+        auditoria.setVehiculoInfoAnterior(data.getVehiculoInfo());
+        auditoria.setCapacidadAnterior(data.getCapacidad());
+        auditoria.setEstadoAnterior(data.getEstado() != null ? data.getEstado().name() : null);
+    }
+
+    private void mapearDatosNuevos(AuditoriaTransportista auditoria, Transportista data) {
+        auditoria.setNombreNuevo(data.getNombre());
+        auditoria.setApellidosNuevo(data.getApellidos());
+        auditoria.setDniNuevo(data.getDni());
+        auditoria.setEdadNuevo(data.getEdad());
+        auditoria.setTipoTransporteNuevo(data.getTipoTransporte() != null ? data.getTipoTransporte().name() : null);
+        auditoria.setPlacaNuevo(data.getPlaca());
+        auditoria.setVehiculoInfoNuevo(data.getVehiculoInfo());
+        auditoria.setCapacidadNuevo(data.getCapacidad());
+        auditoria.setEstadoNuevo(data.getEstado() != null ? data.getEstado().name() : null);
+    }
+
+    private String serializarTransportista(Transportista transportista) {
+        try {
+            Map<String, Object> map = new LinkedHashMap<>();
+            map.put(KEY_ID, transportista.getId());
+            map.put(KEY_NOMBRE, transportista.getNombre());
+            map.put(KEY_APELLIDOS, transportista.getApellidos());
+            map.put(KEY_DNI, transportista.getDni());
+            map.put(KEY_EDAD, transportista.getEdad());
+            map.put(KEY_TIPO_TRANSPORTE, transportista.getTipoTransporte());
+            map.put(KEY_PLACA, transportista.getPlaca());
+            map.put(KEY_VEHICULO_INFO, transportista.getVehiculoInfo());
+            map.put(KEY_CAPACIDAD, transportista.getCapacidad());
+            map.put(KEY_ESTADO, transportista.getEstado());
+            map.put(KEY_CREATED_AT, transportista.getCreatedAt());
+            map.put(KEY_DELETED_AT, transportista.getDeletedAt());
+            map.put(KEY_DELETED_BY, transportista.getDeletedBy());
+            return objectMapper.writeValueAsString(map);
+        } catch (JsonProcessingException e) {
+            log.error("Error al serializar transportista para auditoría", e);
+            throw new AuditException(MSG_SERIALIZATION_ERROR, e);
+        }
+    }
+
+    private String serializarTransportistaParaActualizacion(Transportista transportista) {
+        try {
+            Map<String, Object> map = new LinkedHashMap<>();
+            map.put(KEY_ID, transportista.getId());
+            map.put(KEY_NOMBRE, transportista.getNombre());
+            map.put(KEY_APELLIDOS, transportista.getApellidos());
+            map.put(KEY_DNI, transportista.getDni());
+            map.put(KEY_EDAD, transportista.getEdad());
+            map.put(KEY_TIPO_TRANSPORTE, transportista.getTipoTransporte());
+            map.put(KEY_PLACA, transportista.getPlaca());
+            map.put(KEY_VEHICULO_INFO, transportista.getVehiculoInfo());
+            map.put(KEY_CAPACIDAD, transportista.getCapacidad());
+            map.put(KEY_ESTADO, transportista.getEstado());
+            map.put(KEY_CREATED_AT, transportista.getCreatedAt());
+            map.put(KEY_UPDATED_AT, transportista.getUpdatedAt());
+            return objectMapper.writeValueAsString(map);
+        } catch (JsonProcessingException e) {
+            log.error("Error al serializar transportista para auditoría de actualización", e);
+            throw new AuditException(MSG_SERIALIZATION_ERROR, e);
         }
     }
 
@@ -471,26 +495,32 @@ public class TransportistaService {
         try {
             return SecurityContextHolder.getContext().getAuthentication().getName();
         } catch (Exception e) {
-            return "sistema";
+            log.debug("No se pudo obtener el usuario autenticado, usando valor por defecto");
+            return SYSTEM_USER;
         }
     }
 
     private String getClientIP() {
         try {
-            String ip = request.getHeader("X-Forwarded-For");
-            if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-                ip = request.getHeader("Proxy-Client-IP");
+            String ip = request.getHeader(HEADER_X_FORWARDED_FOR);
+            if (isInvalidIp(ip)) {
+                ip = request.getHeader(HEADER_PROXY_CLIENT_IP);
             }
-            if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-                ip = request.getHeader("WL-Proxy-Client-IP");
+            if (isInvalidIp(ip)) {
+                ip = request.getHeader(HEADER_WL_PROXY_CLIENT_IP);
             }
-            if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+            if (isInvalidIp(ip)) {
                 ip = request.getRemoteAddr();
             }
-            return ip;
+            return isInvalidIp(ip) ? DEFAULT_IP : ip;
         } catch (Exception e) {
-            return "0.0.0.0";
+            log.debug("No se pudo obtener la IP del cliente, usando valor por defecto");
+            return DEFAULT_IP;
         }
+    }
+
+    private boolean isInvalidIp(String ip) {
+        return ip == null || ip.isEmpty() || UNKNOWN.equalsIgnoreCase(ip);
     }
 
     private Transportista copiarEntidad(Transportista original) {
@@ -529,6 +559,6 @@ public class TransportistaService {
     private String generarUsername(String nombre, String apellidos) {
         String primerNombre = nombre.split(" ")[0].toLowerCase(Locale.ROOT);
         String primerApellido = apellidos.split(" ")[0].toLowerCase(Locale.ROOT);
-        return primerNombre + "." + primerApellido;
+        return primerNombre + USERNAME_SEPARATOR + primerApellido;
     }
 }

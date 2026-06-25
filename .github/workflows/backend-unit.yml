@@ -1,0 +1,29 @@
+name: 1. Pruebas Unitarias - Astramaco III
+
+on:
+  push:
+    branches: [ "main", "develop", "final-trabajo" ]
+  pull_request:
+    branches: [ "main", "develop", "final-trabajo" ]
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Dar permisos de ejecución a Maven
+        run: chmod +x mvnw
+
+      - name: Ejecutar Pruebas Unitarias
+        run: ./mvnw test -Dtest=*UnitTest
+        env:
+          APP_JWT_SECRET: EstaEsUnaClaveJWTDePruebasMuyLargaSeguraParaAstramacoIII2026Valida123456789

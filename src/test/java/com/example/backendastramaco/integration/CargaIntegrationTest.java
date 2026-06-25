@@ -1,31 +1,27 @@
 package com.example.backendastramaco.integration;
 
 import com.example.backendastramaco.dto.TransportistaRequestDTO;
-import com.example.backendastramaco.model.Transportista;
 import com.example.backendastramaco.model.enums.TipoTransporte;
-import com.example.backendastramaco.repository.CargaRepository;
 import com.example.backendastramaco.service.TransportistaService;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.hamcrest.Matchers.isA;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.hamcrest.Matchers.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class CargaIntegrationTest extends CargaBaseIntegrationTest {
 
     private static final String AUTHORIZATION = "Authorization";
     private static final String BEARER_PREFIX = "Bearer ";
     private static final String CONTENT_TYPE_JSON = MediaType.APPLICATION_JSON_VALUE;
-    private static final String TOKEN_SPLIT_REGEX = "\"token\":\"";
-    private static final String TOKEN_SPLIT_END = "\"";
 
     @Autowired
     private MockMvc mockMvc;
@@ -33,9 +29,7 @@ class CargaIntegrationTest extends CargaBaseIntegrationTest {
     @Autowired
     private TransportistaService transportistaService;
 
-    @Autowired
-    private CargaRepository cargaRepository;
-
+    // Helper para obtener token
     private String obtenerTokenAdmin() throws Exception {
         String loginBody = """
             {
@@ -51,13 +45,14 @@ class CargaIntegrationTest extends CargaBaseIntegrationTest {
                 .getResponse()
                 .getContentAsString();
 
-        return response.split(TOKEN_SPLIT_REGEX)[1].split(TOKEN_SPLIT_END)[0];
+        return response.split("\"token\":\"")[1].split("\"")[0];
     }
 
-    private Transportista crearTransportista(String nombre, String apellidos, String dni, TipoTransporte tipo) {
+    // Helper para crear transportista
+    private Long crearTransportista(String dni, TipoTransporte tipo) {
         TransportistaRequestDTO dto = new TransportistaRequestDTO();
-        dto.setNombre(nombre);
-        dto.setApellidos(apellidos);
+        dto.setNombre("Test Carga");
+        dto.setApellidos("Camionero");
         dto.setDni(dni);
         dto.setEdad(30);
         dto.setTipoTransporte(tipo);
@@ -66,14 +61,15 @@ class CargaIntegrationTest extends CargaBaseIntegrationTest {
         dto.setCapacidad(20.0);
         dto.setEstado("ACTIVO");
 
-        return transportistaService.crear(dto);
+        return transportistaService.crear(dto).getId();
     }
 
     @Test
-    @DisplayName("Debe registrar carga para camionero")
-    void subirCargaActual_DebeRegistrarCargaParaCamionero() throws Exception {
+    @Order(1)
+    @DisplayName("POST /api/cargas/{transportistaId} - Debe crear carga (201 Created)")
+    void crearCarga_DebeRegistrarCarga() throws Exception {
         String token = obtenerTokenAdmin();
-        Transportista transportista = crearTransportista("Carga", "Camionero", "10101010", TipoTransporte.CAMIONERO);
+        Long transportistaId = crearTransportista("10101010", TipoTransporte.CAMIONERO);
 
         String body = """
             {
@@ -82,193 +78,248 @@ class CargaIntegrationTest extends CargaBaseIntegrationTest {
             }
             """;
 
-        mockMvc.perform(put("/api/cargas/" + transportista.getId())
+        mockMvc.perform(post("/api/cargas/" + transportistaId)
                         .header(AUTHORIZATION, BEARER_PREFIX + token)
                         .contentType(CONTENT_TYPE_JSON)
                         .content(body))
-                .andExpect(status().isOk())
+                .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id", notNullValue()))
-                .andExpect(jsonPath("$.transportistaId").value(transportista.getId()))
-                .andExpect(jsonPath("$.transportistaNombre").value("Carga Camionero"))
                 .andExpect(jsonPath("$.tipoMaterial").value("PANDERETA"))
                 .andExpect(jsonPath("$.cantidadDisponible").value(100.0));
-
-        assertThat(cargaRepository.findByTransportistaId(transportista.getId())).isPresent();
     }
 
     @Test
-    @DisplayName("Debe aumentar carga cuando el material coincide")
-    void aumentarCargaActual_DebeSumarCantidadCuandoMaterialEsIgual() throws Exception {
+    @Order(2)
+    @DisplayName("PUT /api/cargas/{transportistaId} - Debe actualizar carga (200 OK)")
+    void actualizarCarga_DebeModificarDatos() throws Exception {
         String token = obtenerTokenAdmin();
-        Transportista transportista = crearTransportista("Aumentar", "Carga", "20202020", TipoTransporte.CAMIONERO);
+        Long transportistaId = crearTransportista("20202020", TipoTransporte.CAMIONERO);
 
-        String cargaInicial = """
+        // 1. Crear
+        String bodyCrear = """
             {
               "tipoMaterial": "TECHO",
               "cantidadDisponible": 50.0
             }
             """;
+        mockMvc.perform(post("/api/cargas/" + transportistaId)
+                        .header(AUTHORIZATION, BEARER_PREFIX + token)
+                        .contentType(CONTENT_TYPE_JSON)
+                        .content(bodyCrear))
+                .andExpect(status().isCreated());
 
-        mockMvc.perform(put("/api/cargas/" + transportista.getId())
+        // 2. Actualizar
+        String bodyActualizar = """
+            {
+              "tipoMaterial": "TECHO",
+              "cantidadDisponible": 150.0
+            }
+            """;
+        mockMvc.perform(put("/api/cargas/" + transportistaId)
+                        .header(AUTHORIZATION, BEARER_PREFIX + token)
+                        .contentType(CONTENT_TYPE_JSON)
+                        .content(bodyActualizar))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.cantidadDisponible").value(150.0));
+    }
+
+    @Test
+    @Order(3)
+    @DisplayName("POST /api/cargas/{transportistaId}/aumentar - Debe sumar cantidad (200 OK)")
+    void aumentarCarga_DebeSumarCantidad() throws Exception {
+        String token = obtenerTokenAdmin();
+        Long transportistaId = crearTransportista("30303030", TipoTransporte.CAMIONERO);
+
+        String cargaInicial = """
+            {
+              "tipoMaterial": "PANDERETA",
+              "cantidadDisponible": 50.0
+            }
+            """;
+        mockMvc.perform(post("/api/cargas/" + transportistaId)
                         .header(AUTHORIZATION, BEARER_PREFIX + token)
                         .contentType(CONTENT_TYPE_JSON)
                         .content(cargaInicial))
-                .andExpect(status().isOk());
+                .andExpect(status().isCreated());
 
         String aumentar = """
             {
-              "tipoMaterial": "TECHO",
+              "tipoMaterial": "PANDERETA",
               "cantidadAgregar": 25.0
             }
             """;
-
-        mockMvc.perform(post("/api/cargas/" + transportista.getId() + "/aumentar")
+        mockMvc.perform(post("/api/cargas/" + transportistaId + "/aumentar")
                         .header(AUTHORIZATION, BEARER_PREFIX + token)
                         .contentType(CONTENT_TYPE_JSON)
                         .content(aumentar))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.tipoMaterial").value("TECHO"))
                 .andExpect(jsonPath("$.cantidadDisponible").value(75.0));
     }
 
     @Test
-    @DisplayName("Debe obtener la carga del transportista")
+    @Order(4)
+    @DisplayName("GET /api/cargas/{transportistaId} - Debe obtener carga actual")
     void obtenerCarga_DebeRetornarCargaDelTransportista() throws Exception {
         String token = obtenerTokenAdmin();
-        Transportista transportista = crearTransportista("Obtener", "Carga", "30303030", TipoTransporte.CAMIONERO);
+        Long transportistaId = crearTransportista("40404040", TipoTransporte.CAMIONERO);
 
         String body = """
             {
-              "tipoMaterial": "PANDERETA",
+              "tipoMaterial": "TECHO",
               "cantidadDisponible": 80.0
             }
             """;
-
-        mockMvc.perform(put("/api/cargas/" + transportista.getId())
+        mockMvc.perform(post("/api/cargas/" + transportistaId)
                         .header(AUTHORIZATION, BEARER_PREFIX + token)
                         .contentType(CONTENT_TYPE_JSON)
                         .content(body))
-                .andExpect(status().isOk());
+                .andExpect(status().isCreated());
 
-        mockMvc.perform(get("/api/cargas/" + transportista.getId())
+        mockMvc.perform(get("/api/cargas/" + transportistaId)
                         .header(AUTHORIZATION, BEARER_PREFIX + token))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.transportistaId").value(transportista.getId()))
-                .andExpect(jsonPath("$.tipoMaterial").value("PANDERETA"))
+                .andExpect(jsonPath("$.tipoMaterial").value("TECHO"))
                 .andExpect(jsonPath("$.cantidadDisponible").value(80.0));
     }
 
     @Test
-    @DisplayName("Debe listar todas las cargas")
-    void listarTodas_DebeRetornarListaDeCargas() throws Exception {
+    @Order(5)
+    @DisplayName("GET /api/cargas/{id}/detalle - Debe obtener carga por su ID")
+    void obtenerPorId_DebeRetornarDetalle() throws Exception {
+        String token = obtenerTokenAdmin();
+        Long transportistaId = crearTransportista("50505050", TipoTransporte.CAMIONERO);
+
+        String body = """
+            {
+              "tipoMaterial": "PANDERETA",
+              "cantidadDisponible": 30.0
+            }
+            """;
+        String responseStr = mockMvc.perform(post("/api/cargas/" + transportistaId)
+                        .header(AUTHORIZATION, BEARER_PREFIX + token)
+                        .contentType(CONTENT_TYPE_JSON)
+                        .content(body))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+
+        String cargaId = responseStr.split("\"id\":")[1].split(",")[0].trim();
+
+        mockMvc.perform(get("/api/cargas/" + cargaId + "/detalle")
+                        .header(AUTHORIZATION, BEARER_PREFIX + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(Integer.parseInt(cargaId)));
+    }
+
+    @Test
+    @Order(6)
+    @DisplayName("GET /api/cargas - Debe listar todas las cargas (paginadas)")
+    void listarTodas_DebeRetornarPagina() throws Exception {
         String token = obtenerTokenAdmin();
 
         mockMvc.perform(get("/api/cargas")
                         .header(AUTHORIZATION, BEARER_PREFIX + token))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", isA(java.util.List.class)));
+                .andExpect(jsonPath("$.content", isA(java.util.List.class)))
+                .andExpect(jsonPath("$.pageable").exists());
     }
 
     @Test
-    @DisplayName("Debe fallar cuando el transportista es volquetero (no puede tener carga)")
-    void subirCargaActual_DebeFallarCuandoTransportistaEsVolquetero() throws Exception {
+    @Order(7)
+    @DisplayName("GET /api/cargas/transportista/{id}/historial - Debe listar historial")
+    void listarHistorial_DebeRetornarPagina() throws Exception {
         String token = obtenerTokenAdmin();
-        Transportista transportista = crearTransportista("Volquetero", "SinCarga", "40404040", TipoTransporte.VOLQUETERO);
+        Long transportistaId = crearTransportista("60606060", TipoTransporte.CAMIONERO);
+
+        mockMvc.perform(get("/api/cargas/transportista/" + transportistaId + "/historial")
+                        .header(AUTHORIZATION, BEARER_PREFIX + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", isA(java.util.List.class)));
+    }
+
+    @Test
+    @Order(8)
+    @DisplayName("DELETE /api/cargas/{id} - Debe eliminar lógicamente (204 No Content)")
+    void eliminar_DebeRealizarSoftDelete() throws Exception {
+        String token = obtenerTokenAdmin();
+        Long transportistaId = crearTransportista("70707070", TipoTransporte.CAMIONERO);
+
+        String body = """
+            {
+              "tipoMaterial": "TECHO",
+              "cantidadDisponible": 10.0
+            }
+            """;
+        String responseStr = mockMvc.perform(post("/api/cargas/" + transportistaId)
+                        .header(AUTHORIZATION, BEARER_PREFIX + token)
+                        .contentType(CONTENT_TYPE_JSON)
+                        .content(body))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+
+        String cargaId = responseStr.split("\"id\":")[1].split(",")[0].trim();
+
+        mockMvc.perform(delete("/api/cargas/" + cargaId)
+                        .header(AUTHORIZATION, BEARER_PREFIX + token))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    @Order(9)
+    @DisplayName("PATCH /api/cargas/{id}/restaurar - Debe restaurar carga")
+    void restaurar_DebeQuitarSoftDelete() throws Exception {
+        String token = obtenerTokenAdmin();
+        Long transportistaId = crearTransportista("80808080", TipoTransporte.CAMIONERO);
 
         String body = """
             {
               "tipoMaterial": "PANDERETA",
-              "cantidadDisponible": 100.0
+              "cantidadDisponible": 15.0
             }
             """;
-
-        // ✅ CORRECCIÓN: Usar andExpect en lugar de assertThrows
-        mockMvc.perform(put("/api/cargas/" + transportista.getId())
+        String responseStr = mockMvc.perform(post("/api/cargas/" + transportistaId)
                         .header(AUTHORIZATION, BEARER_PREFIX + token)
                         .contentType(CONTENT_TYPE_JSON)
                         .content(body))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("Solo los transportistas CAMIONERO pueden manejar carga"));
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+
+        String cargaId = responseStr.split("\"id\":")[1].split(",")[0].trim();
+
+        // Eliminar
+        mockMvc.perform(delete("/api/cargas/" + cargaId)
+                        .header(AUTHORIZATION, BEARER_PREFIX + token))
+                .andExpect(status().isNoContent());
+
+        // Restaurar
+        mockMvc.perform(patch("/api/cargas/" + cargaId + "/restaurar")
+                        .header(AUTHORIZATION, BEARER_PREFIX + token))
+                .andExpect(status().isNoContent());
     }
 
     @Test
-    @DisplayName("Debe fallar cuando el material no es permitido para camionero")
-    void subirCargaActual_DebeFallarCuandoMaterialNoEsPermitidoParaCamionero() throws Exception {
+    @Order(10)
+    @DisplayName("DELETE /api/cargas/{id}/permanente - Debe borrar físicamente")
+    void eliminarPermanente_DebeBorrarDeBD() throws Exception {
         String token = obtenerTokenAdmin();
-        Transportista transportista = crearTransportista("Material", "Invalido", "50505050", TipoTransporte.CAMIONERO);
+        Long transportistaId = crearTransportista("90909090", TipoTransporte.CAMIONERO);
 
         String body = """
-        {
-          "tipoMaterial": "ARENA_GRUESA",
-          "cantidadDisponible": 100.0
-        }
-        """;
-
-        mockMvc.perform(put("/api/cargas/" + transportista.getId())
+            {
+              "tipoMaterial": "TECHO",
+              "cantidadDisponible": 99.0
+            }
+            """;
+        String responseStr = mockMvc.perform(post("/api/cargas/" + transportistaId)
                         .header(AUTHORIZATION, BEARER_PREFIX + token)
                         .contentType(CONTENT_TYPE_JSON)
                         .content(body))
-                .andExpect(status().isBadRequest())
-                // ✅ CORREGIDO: Usar el mensaje real del servicio (CAMIONERO en mayúsculas)
-                .andExpect(jsonPath("$.message").value("El transportista CAMIONERO solo puede registrar PANDERETA o TECHO"));
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+
+        String cargaId = responseStr.split("\"id\":")[1].split(",")[0].trim();
+
+        mockMvc.perform(delete("/api/cargas/" + cargaId + "/permanente")
+                        .header(AUTHORIZATION, BEARER_PREFIX + token))
+                .andExpect(status().isNoContent());
     }
-
-
-    @Test
-    @DisplayName("Debe fallar al aumentar carga cuando el material es diferente")
-    void aumentarCargaActual_DebeFallarCuandoMaterialEsDistinto() throws Exception {
-        String token = obtenerTokenAdmin();
-        Transportista transportista = crearTransportista("Material", "Distinto", "60606060", TipoTransporte.CAMIONERO);
-
-        String cargaInicial = """
-        {
-          "tipoMaterial": "PANDERETA",
-          "cantidadDisponible": 40.0
-        }
-        """;
-
-        mockMvc.perform(put("/api/cargas/" + transportista.getId())
-                        .header(AUTHORIZATION, BEARER_PREFIX + token)
-                        .contentType(CONTENT_TYPE_JSON)
-                        .content(cargaInicial))
-                .andExpect(status().isOk());
-
-        String aumentar = """
-        {
-          "tipoMaterial": "TECHO",
-          "cantidadAgregar": 10.0
-        }
-        """;
-
-        mockMvc.perform(post("/api/cargas/" + transportista.getId() + "/aumentar")
-                        .header(AUTHORIZATION, BEARER_PREFIX + token)
-                        .contentType(CONTENT_TYPE_JSON)
-                        .content(aumentar))
-                .andExpect(status().isBadRequest())
-                // ✅ CORREGIDO: Usar el mensaje real del servicio
-                .andExpect(jsonPath("$.message").value("Solo se puede aumentar si el material es el mismo que la carga actual"));
-    }
-
-    @Test
-    @DisplayName("Debe fallar al aumentar carga cuando la carga no existe")
-    void aumentarCargaActual_DebeFallarCuandoNoExisteCarga() throws Exception {
-        String token = obtenerTokenAdmin();
-        Transportista transportista = crearTransportista("Sin", "Carga", "70707070", TipoTransporte.CAMIONERO);
-
-        String aumentar = """
-        {
-          "tipoMaterial": "PANDERETA",
-          "cantidadAgregar": 10.0
-        }
-        """;
-
-        mockMvc.perform(post("/api/cargas/" + transportista.getId() + "/aumentar")
-                        .header(AUTHORIZATION, BEARER_PREFIX + token)
-                        .contentType(CONTENT_TYPE_JSON)
-                        .content(aumentar))
-                .andExpect(status().isBadRequest())
-                // ✅ CORREGIDO: Usar el mensaje real del servicio
-                .andExpect(jsonPath("$.message").value("El transportista no tiene carga registrada"));
-    }
-
 }

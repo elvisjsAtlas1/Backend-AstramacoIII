@@ -1,6 +1,7 @@
 package com.example.backendastramaco.service.audit;
 
 import com.example.backendastramaco.model.Usuario;
+import com.example.backendastramaco.model.Transportista;
 import com.example.backendastramaco.model.audit.*;
 import com.example.backendastramaco.repository.audit.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -41,10 +42,10 @@ public class AuditService {
             return "0.0.0.0";
         }
         String xfHeader = request.getHeader("X-Forwarded-For");
-        if (xfHeader == null) {
+        if (xfHeader == null || xfHeader.isEmpty()) {
             return request.getRemoteAddr();
         }
-        return xfHeader.split(",")[0];
+        return xfHeader.split(",")[0].trim();
     }
 
     private String convertToJson(Object data) {
@@ -117,7 +118,7 @@ public class AuditService {
     }
 
     private void mapTransportistaFields(AuditoriaTransportista audit, Object oldData, Object newData) {
-        if (oldData instanceof com.example.backendastramaco.model.Transportista old) {
+        if (oldData instanceof Transportista old) {
             audit.setNombreAnterior(old.getNombre());
             audit.setApellidosAnterior(old.getApellidos());
             audit.setDniAnterior(old.getDni());
@@ -132,7 +133,7 @@ public class AuditService {
                 audit.setEstadoAnterior(old.getEstado().name());
             }
         }
-        if (newData instanceof com.example.backendastramaco.model.Transportista newT) {
+        if (newData instanceof Transportista newT) {
             audit.setNombreNuevo(newT.getNombre());
             audit.setApellidosNuevo(newT.getApellidos());
             audit.setDniNuevo(newT.getDni());

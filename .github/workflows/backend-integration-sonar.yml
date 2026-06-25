@@ -1,0 +1,50 @@
+name: 2. Integración y SonarQube - Astramaco III
+
+on:
+  push:
+    branches: [ "main", "develop", "final-trabajo" ]
+  pull_request:
+    branches: [ "main", "develop", "final-trabajo" ]
+
+jobs:
+  integration-and-quality:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Necesario para el análisis histórico de SonarQube
+
+      - name: Configurar JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Dar permisos a Maven
+        run: chmod +x mvnw
+
+      - name: Levantar servidor SonarQube (Docker)
+        run: |
+          docker run -d --name sonarqube -p 9000:9000 sonarqube:community
+          echo "Esperando a que SonarQube inicie (aprox. 1-2 minutos)..."
+          until $(curl --output /dev/null --silent --head --fail http://localhost:9000/api/system/status); do
+              printf '.'
+              sleep 10
+          done
+          echo " SonarQube está listo."
+
+      - name: Ejecutar Pruebas de Integración y Análisis SonarQube
+        # Se restringe la memoria de Maven para evitar colisiones con SonarQube y Testcontainers
+        env:
+          MAVEN_OPTS: "-Xmx2g"
+          APP_JWT_SECRET: EstaEsUnaClaveJWTDePruebasMuyLargaSeguraParaAstramacoIII2026Valida123456789
+        run: |
+          ./mvnw clean verify sonar:sonar \
+            -Dtest=*IntegrationTest \
+            -Dsonar.projectKey=backend-astramaco \
+            -Dsonar.host.url=http://localhost:9000 \
+            -Dsonar.login=admin \
+            -Dsonar.password=admin \
+            -Dsonar.exclusions="**/test/**,**/k6/**,**/*Test.java"

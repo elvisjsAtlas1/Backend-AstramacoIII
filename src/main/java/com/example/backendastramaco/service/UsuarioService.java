@@ -3,10 +3,14 @@ package com.example.backendastramaco.service;
 import com.example.backendastramaco.dto.UsuarioRequestDTO;
 import com.example.backendastramaco.exception.ResourceNotFoundException;
 import com.example.backendastramaco.exception.DuplicateResourceException;
+import com.example.backendastramaco.exception.AuditException;
+import com.example.backendastramaco.exception.UserAlreadyDeletedException;
+import com.example.backendastramaco.exception.UserNotDeletedException;
 import com.example.backendastramaco.model.Usuario;
 import com.example.backendastramaco.model.audit.AuditoriaUsuario;
 import com.example.backendastramaco.repository.UsuarioRepository;
 import com.example.backendastramaco.repository.audit.AuditoriaUsuarioRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -19,13 +23,56 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class UsuarioService {
+
+    // Constantes para acciones de auditoría
+    private static final String ACTION_CREATE = "CREATE";
+    private static final String ACTION_UPDATE = "UPDATE";
+    private static final String ACTION_UPDATE_ESTADO = "UPDATE_ESTADO";
+    private static final String ACTION_DELETE = "DELETE";
+    private static final String ACTION_RESTORE = "RESTORE";
+    private static final String ACTION_DELETE_PERMANENT = "DELETE_PERMANENT";
+
+    // Constantes para claves de mapas
+    private static final String KEY_ID = "id";
+    private static final String KEY_USERNAME = "username";
+    private static final String KEY_ROL = "rol";
+    private static final String KEY_ACTIVO = "activo";
+    private static final String KEY_CREATED_AT = "createdAt";
+    private static final String KEY_UPDATED_AT = "updatedAt";
+    private static final String KEY_DELETED_AT = "deletedAt";
+    private static final String KEY_DELETED_BY = "deletedBy";
+
+    // Constantes para mensajes
+    private static final String MSG_USER_NOT_FOUND = "Usuario no encontrado con ID: ";
+    private static final String MSG_USER_NOT_FOUND_BY_USERNAME = "Usuario no encontrado con username: ";
+    private static final String MSG_DUPLICATE_USERNAME = "El username '%s' ya está registrado";
+    private static final String MSG_USER_ALREADY_DELETED = "El usuario con ID %d ya está eliminado";
+    private static final String MSG_USER_NOT_DELETED = "El usuario con ID %d no está eliminado";
+    private static final String MSG_AUDIT_SAVE_ERROR = "Error al guardar auditoría para usuario ";
+    private static final String MSG_AUDIT_UPDATE_ERROR = "Error al guardar auditoría de actualización para usuario ";
+    private static final String MSG_SERIALIZATION_ERROR = "Error al serializar datos del usuario";
+
+    // Constantes para valores de auditoría
+    private static final String PASSWORD_CHANGED_YES = "SI";
+    private static final String PASSWORD_CHANGED_NO = "NO";
+    private static final String DEFAULT_IP = "0.0.0.0";
+    private static final String SYSTEM_USER = "sistema";
+    private static final String UNKNOWN = "unknown";
+
+    // Constantes para headers HTTP
+    private static final String HEADER_X_FORWARDED_FOR = "X-Forwarded-For";
+    private static final String HEADER_PROXY_CLIENT_IP = "Proxy-Client-IP";
+    private static final String HEADER_WL_PROXY_CLIENT_IP = "WL-Proxy-Client-IP";
+
+    // Constante para el marcador de posición de password en auditoría
+    private static final String AUDIT_PASSWORD_PLACEHOLDER = "[PROTEGIDO]";
 
     private final UsuarioRepository usuarioRepository;
     private final AuditoriaUsuarioRepository auditoriaRepository;
@@ -39,7 +86,7 @@ public class UsuarioService {
 
         // Verificar si el username ya existe
         if (usuarioRepository.existsByUsername(dto.getUsername())) {
-            throw new DuplicateResourceException("El username '" + dto.getUsername() + "' ya está registrado");
+            throw new DuplicateResourceException(String.format(MSG_DUPLICATE_USERNAME, dto.getUsername()));
         }
 
         Usuario usuario = new Usuario();
@@ -54,7 +101,7 @@ public class UsuarioService {
         // Auditar creación
         auditarAccion(
                 saved.getId(),
-                "CREATE",
+                ACTION_CREATE,
                 null,
                 saved
         );
@@ -93,14 +140,14 @@ public class UsuarioService {
     public Usuario obtenerPorId(Long id) {
         log.debug("Obteniendo usuario por ID: {}", id);
         return usuarioRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado con ID: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException(MSG_USER_NOT_FOUND + id));
     }
 
     @Transactional(readOnly = true)
     public Usuario obtenerPorUsername(String username) {
         log.debug("Obteniendo usuario por username: {}", username);
         return usuarioRepository.findByUsername(username)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado con username: " + username));
+                .orElseThrow(() -> new ResourceNotFoundException(MSG_USER_NOT_FOUND_BY_USERNAME + username));
     }
 
     @Transactional
@@ -108,12 +155,12 @@ public class UsuarioService {
         log.info("Actualizando usuario con ID: {}", id);
 
         Usuario existente = usuarioRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado con ID: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException(MSG_USER_NOT_FOUND + id));
 
         // Verificar si el nuevo username ya existe (excepto el mismo usuario)
         if (!existente.getUsername().equals(dto.getUsername()) &&
                 usuarioRepository.existsByUsername(dto.getUsername())) {
-            throw new DuplicateResourceException("El username '" + dto.getUsername() + "' ya está registrado");
+            throw new DuplicateResourceException(String.format(MSG_DUPLICATE_USERNAME, dto.getUsername()));
         }
 
         // Guardar copia del estado anterior para auditoría
@@ -142,7 +189,7 @@ public class UsuarioService {
         log.info("Cambiando estado del usuario con ID: {} a activo: {}", id, activo);
 
         Usuario usuario = usuarioRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado con ID: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException(MSG_USER_NOT_FOUND + id));
 
         Usuario oldCopy = copiarEntidad(usuario);
         usuario.setActivo(activo);
@@ -151,7 +198,7 @@ public class UsuarioService {
         // Auditar cambio de estado
         auditarAccion(
                 id,
-                "UPDATE_ESTADO",
+                ACTION_UPDATE_ESTADO,
                 oldCopy,
                 usuario
         );
@@ -164,10 +211,10 @@ public class UsuarioService {
         log.info("Eliminando (soft delete) usuario con ID: {}", id);
 
         Usuario existente = usuarioRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado con ID: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException(MSG_USER_NOT_FOUND + id));
 
         if (existente.getDeletedAt() != null) {
-            throw new RuntimeException("El usuario ya está eliminado");
+            throw new UserAlreadyDeletedException(String.format(MSG_USER_ALREADY_DELETED, id));
         }
 
         // Guardar copia para auditoría
@@ -183,7 +230,7 @@ public class UsuarioService {
         // Auditar eliminación
         auditarAccion(
                 id,
-                "DELETE",
+                ACTION_DELETE,
                 oldCopy,
                 null
         );
@@ -196,10 +243,10 @@ public class UsuarioService {
         log.info("Restaurando usuario con ID: {}", id);
 
         Usuario usuario = usuarioRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado con ID: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException(MSG_USER_NOT_FOUND + id));
 
         if (usuario.getDeletedAt() == null) {
-            throw new RuntimeException("El usuario no está eliminado");
+            throw new UserNotDeletedException(String.format(MSG_USER_NOT_DELETED, id));
         }
 
         Usuario oldCopy = copiarEntidad(usuario);
@@ -212,7 +259,7 @@ public class UsuarioService {
         // Auditar restauración
         auditarAccion(
                 id,
-                "RESTORE",
+                ACTION_RESTORE,
                 oldCopy,
                 usuario
         );
@@ -225,7 +272,7 @@ public class UsuarioService {
         log.info("Eliminando permanentemente usuario con ID: {}", id);
 
         Usuario usuario = usuarioRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado con ID: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException(MSG_USER_NOT_FOUND + id));
 
         // Guardar copia para auditoría antes de eliminar
         Usuario oldCopy = copiarEntidad(usuario);
@@ -233,7 +280,7 @@ public class UsuarioService {
         // Auditar eliminación permanente
         auditarAccion(
                 id,
-                "DELETE_PERMANENT",
+                ACTION_DELETE_PERMANENT,
                 oldCopy,
                 null
         );
@@ -246,104 +293,93 @@ public class UsuarioService {
 
     private void auditarAccion(Long usuarioId, String accion, Usuario oldData, Usuario newData) {
         try {
-            AuditoriaUsuario auditoria = new AuditoriaUsuario();
-            auditoria.setUsuarioId(usuarioId);
-            auditoria.setAccion(accion);
-            auditoria.setUsername(getCurrentUsername());
-            auditoria.setFechaHora(LocalDateTime.now());
-            auditoria.setIpAddress(getClientIP());
+            AuditoriaUsuario auditoria = crearAuditoriaBase(usuarioId, accion);
 
             if (oldData != null) {
                 auditoria.setUsernameAnterior(oldData.getUsername());
                 auditoria.setRolAnterior(oldData.getRol().name());
-                auditoria.setPasswordAnterior("***");
-
-                // Guardar datos completos como JSON
-                try {
-                    Map<String, Object> oldMap = new HashMap<>();
-                    oldMap.put("id", oldData.getId());
-                    oldMap.put("username", oldData.getUsername());
-                    oldMap.put("rol", oldData.getRol());
-                    oldMap.put("activo", oldData.getActivo());
-                    oldMap.put("createdAt", oldData.getCreatedAt());
-                    oldMap.put("deletedAt", oldData.getDeletedAt());
-                    oldMap.put("deletedBy", oldData.getDeletedBy());
-                    auditoria.setDatosCompletosAnteriores(objectMapper.writeValueAsString(oldMap));
-                } catch (Exception e) {
-                    log.error("Error al serializar datos anteriores", e);
-                }
+                auditoria.setPasswordAnterior(AUDIT_PASSWORD_PLACEHOLDER);
+                auditoria.setDatosCompletosAnteriores(serializarUsuario(oldData));
             }
 
             if (newData != null) {
                 auditoria.setUsernameNuevo(newData.getUsername());
                 auditoria.setRolNuevo(newData.getRol().name());
-                auditoria.setPasswordCambiada("NO");
-
-                try {
-                    Map<String, Object> newMap = new HashMap<>();
-                    newMap.put("id", newData.getId());
-                    newMap.put("username", newData.getUsername());
-                    newMap.put("rol", newData.getRol());
-                    newMap.put("activo", newData.getActivo());
-                    newMap.put("createdAt", newData.getCreatedAt());
-                    newMap.put("deletedAt", newData.getDeletedAt());
-                    newMap.put("deletedBy", newData.getDeletedBy());
-                    auditoria.setDatosCompletosNuevos(objectMapper.writeValueAsString(newMap));
-                } catch (Exception e) {
-                    log.error("Error al serializar datos nuevos", e);
-                }
+                auditoria.setPasswordCambiada(PASSWORD_CHANGED_NO);
+                auditoria.setDatosCompletosNuevos(serializarUsuario(newData));
             }
 
             auditoriaRepository.save(auditoria);
             log.debug("Auditoría guardada para usuario {}: {}", usuarioId, accion);
         } catch (Exception e) {
-            log.error("Error al guardar auditoría para usuario {}: {}", usuarioId, e.getMessage());
+            log.error(MSG_AUDIT_SAVE_ERROR + "{}: {}", usuarioId, e.getMessage());
+            throw new AuditException(MSG_AUDIT_SAVE_ERROR + usuarioId, e);
         }
     }
 
     private void auditarActualizacion(Usuario oldData, Usuario newData, boolean passwordCambiada) {
         try {
-            AuditoriaUsuario auditoria = new AuditoriaUsuario();
-            auditoria.setUsuarioId(newData.getId());
-            auditoria.setAccion("UPDATE");
-            auditoria.setUsername(getCurrentUsername());
-            auditoria.setFechaHora(LocalDateTime.now());
-            auditoria.setIpAddress(getClientIP());
+            AuditoriaUsuario auditoria = crearAuditoriaBase(newData.getId(), ACTION_UPDATE);
 
             auditoria.setUsernameAnterior(oldData.getUsername());
             auditoria.setRolAnterior(oldData.getRol().name());
-            auditoria.setPasswordAnterior("***");
+            auditoria.setPasswordAnterior(AUDIT_PASSWORD_PLACEHOLDER);
 
             auditoria.setUsernameNuevo(newData.getUsername());
             auditoria.setRolNuevo(newData.getRol().name());
-            auditoria.setPasswordCambiada(passwordCambiada ? "SI" : "NO");
+            auditoria.setPasswordCambiada(passwordCambiada ? PASSWORD_CHANGED_YES : PASSWORD_CHANGED_NO);
 
-            try {
-                Map<String, Object> oldMap = new HashMap<>();
-                oldMap.put("id", oldData.getId());
-                oldMap.put("username", oldData.getUsername());
-                oldMap.put("rol", oldData.getRol());
-                oldMap.put("activo", oldData.getActivo());
-                oldMap.put("createdAt", oldData.getCreatedAt());
-                oldMap.put("updatedAt", oldData.getUpdatedAt());
-                auditoria.setDatosCompletosAnteriores(objectMapper.writeValueAsString(oldMap));
-
-                Map<String, Object> newMap = new HashMap<>();
-                newMap.put("id", newData.getId());
-                newMap.put("username", newData.getUsername());
-                newMap.put("rol", newData.getRol());
-                newMap.put("activo", newData.getActivo());
-                newMap.put("createdAt", newData.getCreatedAt());
-                newMap.put("updatedAt", newData.getUpdatedAt());
-                auditoria.setDatosCompletosNuevos(objectMapper.writeValueAsString(newMap));
-            } catch (Exception e) {
-                log.error("Error al serializar datos para auditoría", e);
-            }
+            auditoria.setDatosCompletosAnteriores(serializarUsuarioParaActualizacion(oldData));
+            auditoria.setDatosCompletosNuevos(serializarUsuarioParaActualizacion(newData));
 
             auditoriaRepository.save(auditoria);
             log.debug("Auditoría de actualización guardada para usuario {}", newData.getId());
         } catch (Exception e) {
-            log.error("Error al guardar auditoría de actualización", e);
+            log.error(MSG_AUDIT_UPDATE_ERROR + "{}", newData.getId(), e);
+            throw new AuditException(MSG_AUDIT_UPDATE_ERROR + newData.getId(), e);
+        }
+    }
+
+    private AuditoriaUsuario crearAuditoriaBase(Long usuarioId, String accion) {
+        AuditoriaUsuario auditoria = new AuditoriaUsuario();
+        auditoria.setUsuarioId(usuarioId);
+        auditoria.setAccion(accion);
+        auditoria.setUsername(getCurrentUsername());
+        auditoria.setFechaHora(LocalDateTime.now());
+        auditoria.setIpAddress(getClientIP());
+        return auditoria;
+    }
+
+    private String serializarUsuario(Usuario usuario) {
+        try {
+            Map<String, Object> map = new LinkedHashMap<>();
+            map.put(KEY_ID, usuario.getId());
+            map.put(KEY_USERNAME, usuario.getUsername());
+            map.put(KEY_ROL, usuario.getRol());
+            map.put(KEY_ACTIVO, usuario.getActivo());
+            map.put(KEY_CREATED_AT, usuario.getCreatedAt());
+            map.put(KEY_DELETED_AT, usuario.getDeletedAt());
+            map.put(KEY_DELETED_BY, usuario.getDeletedBy());
+            return objectMapper.writeValueAsString(map);
+        } catch (JsonProcessingException e) {
+            log.error("Error al serializar usuario para auditoría", e);
+            throw new AuditException(MSG_SERIALIZATION_ERROR, e);
+        }
+    }
+
+    private String serializarUsuarioParaActualizacion(Usuario usuario) {
+        try {
+            Map<String, Object> map = new LinkedHashMap<>();
+            map.put(KEY_ID, usuario.getId());
+            map.put(KEY_USERNAME, usuario.getUsername());
+            map.put(KEY_ROL, usuario.getRol());
+            map.put(KEY_ACTIVO, usuario.getActivo());
+            map.put(KEY_CREATED_AT, usuario.getCreatedAt());
+            map.put(KEY_UPDATED_AT, usuario.getUpdatedAt());
+            return objectMapper.writeValueAsString(map);
+        } catch (JsonProcessingException e) {
+            log.error("Error al serializar usuario para auditoría de actualización", e);
+            throw new AuditException(MSG_SERIALIZATION_ERROR, e);
         }
     }
 
@@ -351,26 +387,32 @@ public class UsuarioService {
         try {
             return SecurityContextHolder.getContext().getAuthentication().getName();
         } catch (Exception e) {
-            return "sistema";
+            log.debug("No se pudo obtener el usuario autenticado, usando valor por defecto");
+            return SYSTEM_USER;
         }
     }
 
     private String getClientIP() {
         try {
-            String ip = request.getHeader("X-Forwarded-For");
-            if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-                ip = request.getHeader("Proxy-Client-IP");
+            String ip = request.getHeader(HEADER_X_FORWARDED_FOR);
+            if (isInvalidIp(ip)) {
+                ip = request.getHeader(HEADER_PROXY_CLIENT_IP);
             }
-            if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-                ip = request.getHeader("WL-Proxy-Client-IP");
+            if (isInvalidIp(ip)) {
+                ip = request.getHeader(HEADER_WL_PROXY_CLIENT_IP);
             }
-            if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+            if (isInvalidIp(ip)) {
                 ip = request.getRemoteAddr();
             }
-            return ip;
+            return isInvalidIp(ip) ? DEFAULT_IP : ip;
         } catch (Exception e) {
-            return "0.0.0.0";
+            log.debug("No se pudo obtener la IP del cliente, usando valor por defecto");
+            return DEFAULT_IP;
         }
+    }
+
+    private boolean isInvalidIp(String ip) {
+        return ip == null || ip.isEmpty() || UNKNOWN.equalsIgnoreCase(ip);
     }
 
     private Usuario copiarEntidad(Usuario original) {

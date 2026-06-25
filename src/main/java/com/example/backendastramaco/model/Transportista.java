@@ -5,14 +5,16 @@ import com.example.backendastramaco.model.enums.EstadoTransportista;
 import com.example.backendastramaco.model.enums.TipoTransporte;
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.annotations.Where;
 
 import java.util.List;
 
 @Entity
 @Table(name = "transportistas")
-@Deprecated
-@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class Transportista extends BaseEntity {
 
     @OneToOne
@@ -37,6 +39,4 @@ public class Transportista extends BaseEntity {
 
     @Enumerated(EnumType.STRING)
     private EstadoTransportista estado;
-
-
 }
