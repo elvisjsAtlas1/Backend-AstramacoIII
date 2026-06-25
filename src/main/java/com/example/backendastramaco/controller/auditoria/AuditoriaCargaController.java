@@ -1,7 +1,7 @@
 package com.example.backendastramaco.controller.auditoria;
 
-import com.example.backendastramaco.model.audit.AuditoriaTransportista;
-import com.example.backendastramaco.repository.audit.AuditoriaTransportistaRepository;
+import com.example.backendastramaco.model.audit.AuditoriaCarga;
+import com.example.backendastramaco.repository.audit.AuditoriaCargaRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -18,23 +18,31 @@ import java.util.HashMap;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/auditoria/transportistas")
+@RequestMapping("/api/auditoria/cargas")
 @RequiredArgsConstructor
-@Tag(name = "Auditoría Transportistas", description = "API para consultar la auditoría de transportistas")
-public class AuditoriaTransportistaController {
+@Tag(name = "Auditoría Cargas", description = "API para consultar la auditoría de cargas")
+public class AuditoriaCargaController {
 
-    private final AuditoriaTransportistaRepository repository;
+    private final AuditoriaCargaRepository repository;
 
     @GetMapping
-    @Operation(summary = "Listar todas las auditorías de transportistas")
-    public ResponseEntity<Page<AuditoriaTransportista>> listar(
+    @Operation(summary = "Listar todas las auditorías de cargas")
+    public ResponseEntity<Page<AuditoriaCarga>> listar(
             @PageableDefault(size = 20, sort = "fechaHora", direction = Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity.ok(repository.findAll(pageable));
     }
 
+    @GetMapping("/carga/{cargaId}")
+    @Operation(summary = "Auditorías por carga")
+    public ResponseEntity<Page<AuditoriaCarga>> listarPorCarga(
+            @PathVariable Long cargaId,
+            @PageableDefault(size = 20, sort = "fechaHora", direction = Sort.Direction.DESC) Pageable pageable) {
+        return ResponseEntity.ok(repository.findByCargaIdOrderByFechaHoraDesc(cargaId, pageable));
+    }
+
     @GetMapping("/transportista/{transportistaId}")
     @Operation(summary = "Auditorías por transportista")
-    public ResponseEntity<Page<AuditoriaTransportista>> listarPorTransportista(
+    public ResponseEntity<Page<AuditoriaCarga>> listarPorTransportista(
             @PathVariable Long transportistaId,
             @PageableDefault(size = 20, sort = "fechaHora", direction = Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity.ok(repository.findByTransportistaIdOrderByFechaHoraDesc(transportistaId, pageable));
@@ -42,7 +50,7 @@ public class AuditoriaTransportistaController {
 
     @GetMapping("/accion/{accion}")
     @Operation(summary = "Auditorías por acción")
-    public ResponseEntity<Page<AuditoriaTransportista>> listarPorAccion(
+    public ResponseEntity<Page<AuditoriaCarga>> listarPorAccion(
             @PathVariable String accion,
             @PageableDefault(size = 20, sort = "fechaHora", direction = Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity.ok(repository.findByAccion(accion, pageable));
@@ -50,7 +58,7 @@ public class AuditoriaTransportistaController {
 
     @GetMapping("/fechas")
     @Operation(summary = "Auditorías por rango de fechas")
-    public ResponseEntity<Page<AuditoriaTransportista>> listarPorRangoFechas(
+    public ResponseEntity<Page<AuditoriaCarga>> listarPorRangoFechas(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime inicio,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime fin,
             @PageableDefault(size = 20, sort = "fechaHora", direction = Sort.Direction.DESC) Pageable pageable) {
@@ -58,15 +66,15 @@ public class AuditoriaTransportistaController {
     }
 
     @GetMapping("/resumen")
-    @Operation(summary = "Resumen de auditorías de transportistas")
+    @Operation(summary = "Resumen de auditorías de cargas")
     public ResponseEntity<Map<String, Long>> getResumenAuditorias() {
         Map<String, Long> resumen = new HashMap<>();
         resumen.put("CREATE", repository.countByAccion("CREATE"));
         resumen.put("UPDATE", repository.countByAccion("UPDATE"));
+        resumen.put("UPDATE_AUMENTO", repository.countByAccion("UPDATE_AUMENTO"));
         resumen.put("DELETE", repository.countByAccion("DELETE"));
         resumen.put("RESTORE", repository.countByAccion("RESTORE"));
         resumen.put("DELETE_PERMANENT", repository.countByAccion("DELETE_PERMANENT"));
-        resumen.put("UPDATE_ESTADO", repository.countByAccion("UPDATE_ESTADO"));
         return ResponseEntity.ok(resumen);
     }
 }

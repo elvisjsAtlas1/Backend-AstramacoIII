@@ -1,9 +1,23 @@
 package com.example.backendastramaco.repository.audit;
-import com.example.backendastramaco.model.audit.AuditoriaUsuario;
-import org.springframework.data.jpa.repository.JpaRepository;
-import java.util.List;
 
+import com.example.backendastramaco.model.audit.AuditoriaUsuario;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.time.LocalDateTime;
+
+@Repository
 public interface AuditoriaUsuarioRepository extends JpaRepository<AuditoriaUsuario, Long> {
-    List<AuditoriaUsuario> findAllByOrderByFechaHoraDesc();
-    List<AuditoriaUsuario> findByUsuarioIdOrderByFechaHoraDesc(Long usuarioId);
+
+    Page<AuditoriaUsuario> findAllByOrderByFechaHoraDesc(Pageable pageable);
+
+    Page<AuditoriaUsuario> findByUsuarioIdOrderByFechaHoraDesc(Long usuarioId, Pageable pageable);
+
+    Page<AuditoriaUsuario> findByAccion(String accion, Pageable pageable);
+
+    Page<AuditoriaUsuario> findByFechaHoraBetween(LocalDateTime inicio, LocalDateTime fin, Pageable pageable);
+
+    long countByAccion(String accion);
 }

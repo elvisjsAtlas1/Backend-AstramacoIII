@@ -13,19 +13,28 @@ public class AuditoriaPedido {
     private Long id;
 
     private Long pedidoId;
-    private String accion;            // CREATE, UPDATE, DELETE
-    private String username;          // Usuario que realizó la acción
+    private String accion;            // CREATE, UPDATE, DELETE, RESTORE, DELETE_PERMANENT, UPDATE_ESTADO
+    private String username;
 
-    private Long transportistaIdAnterior;
-    private Long transportistaIdNuevo;
-    private String tipoTarjetaAnterior;
-    private String tipoTarjetaNuevo;
-    private Integer cantidadAnterior;
-    private Integer cantidadNuevo;
+    // Campos específicos para tracking
+    private String clienteNombreAnterior;
+    private String clienteNombreNuevo;
+    private String clienteTelefonoAnterior;
+    private String clienteTelefonoNuevo;
+    private String direccionEnvioAnterior;
+    private String direccionEnvioNuevo;
+    private String tipoTransporteAnterior;
+    private String tipoTransporteNuevo;
+    private String materialAnterior;
+    private String materialNuevo;
+    private Double cantidadAnterior;
+    private Double cantidadNuevo;
+    private Double montoTotalAnterior;
+    private Double montoTotalNuevo;
+    private Double adelantoAnterior;
+    private Double adelantoNuevo;
     private String estadoAnterior;
     private String estadoNuevo;
-    private LocalDateTime fechaEntregaAnterior;
-    private LocalDateTime fechaEntregaNuevo;
 
     private LocalDateTime fechaHora;
     private String ipAddress;

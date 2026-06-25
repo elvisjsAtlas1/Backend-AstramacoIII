@@ -34,7 +34,7 @@ export function setup() {
   return { token };
 }
 
-export default function (data) {
+export default function stressTest (data) {
   const { token } = data;
   if (!token) return;
 
@@ -54,8 +54,8 @@ export default function (data) {
     tipoTransporte: 'CAMIONERO',
     material: 'PANDERETA',
     cantidad: 2,
-    montoTotal: 200.00,
-    adelanto: 40.00,
+    montoTotal: 200,
+    adelanto: 40,
     piso: 2,
     horaEnvio: '2026-06-04T12:00:00'
   });

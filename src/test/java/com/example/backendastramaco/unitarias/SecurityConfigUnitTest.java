@@ -1,4 +1,4 @@
-package com.example.backendastramaco;
+package com.example.backendastramaco.unitarias;
 
 import com.example.backendastramaco.security.config.SecurityConfig;
 import com.example.backendastramaco.security.jwt.JwtFilter;

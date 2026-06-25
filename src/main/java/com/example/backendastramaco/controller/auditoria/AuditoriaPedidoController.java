@@ -1,7 +1,7 @@
 package com.example.backendastramaco.controller.auditoria;
 
-import com.example.backendastramaco.model.audit.AuditoriaTransportista;
-import com.example.backendastramaco.repository.audit.AuditoriaTransportistaRepository;
+import com.example.backendastramaco.model.audit.AuditoriaPedido;
+import com.example.backendastramaco.repository.audit.AuditoriaPedidoRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -18,31 +18,31 @@ import java.util.HashMap;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/auditoria/transportistas")
+@RequestMapping("/api/auditoria/pedidos")
 @RequiredArgsConstructor
-@Tag(name = "Auditoría Transportistas", description = "API para consultar la auditoría de transportistas")
-public class AuditoriaTransportistaController {
+@Tag(name = "Auditoría Pedidos", description = "API para consultar la auditoría de pedidos")
+public class AuditoriaPedidoController {
 
-    private final AuditoriaTransportistaRepository repository;
+    private final AuditoriaPedidoRepository repository;
 
     @GetMapping
-    @Operation(summary = "Listar todas las auditorías de transportistas")
-    public ResponseEntity<Page<AuditoriaTransportista>> listar(
+    @Operation(summary = "Listar todas las auditorías de pedidos")
+    public ResponseEntity<Page<AuditoriaPedido>> listar(
             @PageableDefault(size = 20, sort = "fechaHora", direction = Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity.ok(repository.findAll(pageable));
     }
 
-    @GetMapping("/transportista/{transportistaId}")
-    @Operation(summary = "Auditorías por transportista")
-    public ResponseEntity<Page<AuditoriaTransportista>> listarPorTransportista(
-            @PathVariable Long transportistaId,
+    @GetMapping("/pedido/{pedidoId}")
+    @Operation(summary = "Auditorías por pedido")
+    public ResponseEntity<Page<AuditoriaPedido>> listarPorPedido(
+            @PathVariable Long pedidoId,
             @PageableDefault(size = 20, sort = "fechaHora", direction = Sort.Direction.DESC) Pageable pageable) {
-        return ResponseEntity.ok(repository.findByTransportistaIdOrderByFechaHoraDesc(transportistaId, pageable));
+        return ResponseEntity.ok(repository.findByPedidoIdOrderByFechaHoraDesc(pedidoId, pageable));
     }
 
     @GetMapping("/accion/{accion}")
     @Operation(summary = "Auditorías por acción")
-    public ResponseEntity<Page<AuditoriaTransportista>> listarPorAccion(
+    public ResponseEntity<Page<AuditoriaPedido>> listarPorAccion(
             @PathVariable String accion,
             @PageableDefault(size = 20, sort = "fechaHora", direction = Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity.ok(repository.findByAccion(accion, pageable));
@@ -50,7 +50,7 @@ public class AuditoriaTransportistaController {
 
     @GetMapping("/fechas")
     @Operation(summary = "Auditorías por rango de fechas")
-    public ResponseEntity<Page<AuditoriaTransportista>> listarPorRangoFechas(
+    public ResponseEntity<Page<AuditoriaPedido>> listarPorRangoFechas(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime inicio,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime fin,
             @PageableDefault(size = 20, sort = "fechaHora", direction = Sort.Direction.DESC) Pageable pageable) {
@@ -58,7 +58,7 @@ public class AuditoriaTransportistaController {
     }
 
     @GetMapping("/resumen")
-    @Operation(summary = "Resumen de auditorías de transportistas")
+    @Operation(summary = "Resumen de auditorías de pedidos")
     public ResponseEntity<Map<String, Long>> getResumenAuditorias() {
         Map<String, Long> resumen = new HashMap<>();
         resumen.put("CREATE", repository.countByAccion("CREATE"));

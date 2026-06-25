@@ -1,4 +1,4 @@
-package com.example.backendastramaco;
+package com.example.backendastramaco.unitarias;
 
 import com.example.backendastramaco.security.jwt.JwtUtil;
 import org.junit.jupiter.api.BeforeEach;

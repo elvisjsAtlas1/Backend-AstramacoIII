@@ -34,7 +34,7 @@ export function setup() {
   return { token };
 }
 
-export default function (data) {
+export default function stressTest (data) {
   const { token } = data;
   if (!token) return;
 

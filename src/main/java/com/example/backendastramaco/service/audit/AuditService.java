@@ -170,7 +170,7 @@ public class AuditService {
     public void auditDocumento(Long documentoId, Long transportistaId, String accion,
                                Object oldData, Object newData,
                                HttpServletRequest request) {
-        AuditoriaDocumentoPersonal audit = new AuditoriaDocumentoPersonal();
+        AuditoriaDocumento audit = new AuditoriaDocumento();
         audit.setDocumentoId(documentoId);
         audit.setTransportistaId(transportistaId);
         audit.setAccion(accion);

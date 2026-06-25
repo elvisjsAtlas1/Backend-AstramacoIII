@@ -17,12 +17,11 @@ public class AuditoriaCarga {
     private String accion;
     private String username;
 
-    private String tipoTarjetaAnterior;
-    private String tipoTarjetaNuevo;
-    private Integer cantidadDisponibleAnterior;
-    private Integer cantidadDisponibleNuevo;
-    private String estadoAnterior;
-    private String estadoNuevo;
+    // Campos específicos para tracking
+    private String tipoMaterialAnterior;
+    private String tipoMaterialNuevo;
+    private Double cantidadAnterior;
+    private Double cantidadNuevo;
 
     private LocalDateTime fechaHora;
     private String ipAddress;

@@ -65,7 +65,6 @@ class CargaIntegrationTest extends CargaBaseIntegrationTest {
         dto.setVehiculoInfo("Vehiculo carga test");
         dto.setCapacidad(20.0);
         dto.setEstado("ACTIVO");
-        dto.setUsuarioId(1L);
 
         return transportistaService.crear(dto);
     }

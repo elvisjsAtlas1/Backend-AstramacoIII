@@ -1,7 +1,7 @@
 package com.example.backendastramaco.controller.auditoria;
 
-import com.example.backendastramaco.model.audit.AuditoriaTransportista;
-import com.example.backendastramaco.repository.audit.AuditoriaTransportistaRepository;
+import com.example.backendastramaco.model.audit.AuditoriaDocumento;
+import com.example.backendastramaco.repository.audit.AuditoriaDocumentoRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -18,23 +18,31 @@ import java.util.HashMap;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/auditoria/transportistas")
+@RequestMapping("/api/auditoria/documentos")
 @RequiredArgsConstructor
-@Tag(name = "Auditoría Transportistas", description = "API para consultar la auditoría de transportistas")
-public class AuditoriaTransportistaController {
+@Tag(name = "Auditoría Documentos", description = "API para consultar la auditoría de documentos")
+public class AuditoriaDocumentoController {
 
-    private final AuditoriaTransportistaRepository repository;
+    private final AuditoriaDocumentoRepository repository;
 
     @GetMapping
-    @Operation(summary = "Listar todas las auditorías de transportistas")
-    public ResponseEntity<Page<AuditoriaTransportista>> listar(
+    @Operation(summary = "Listar todas las auditorías de documentos")
+    public ResponseEntity<Page<AuditoriaDocumento>> listar(
             @PageableDefault(size = 20, sort = "fechaHora", direction = Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity.ok(repository.findAll(pageable));
     }
 
+    @GetMapping("/documento/{documentoId}")
+    @Operation(summary = "Auditorías por documento")
+    public ResponseEntity<Page<AuditoriaDocumento>> listarPorDocumento(
+            @PathVariable Long documentoId,
+            @PageableDefault(size = 20, sort = "fechaHora", direction = Sort.Direction.DESC) Pageable pageable) {
+        return ResponseEntity.ok(repository.findByDocumentoIdOrderByFechaHoraDesc(documentoId, pageable));
+    }
+
     @GetMapping("/transportista/{transportistaId}")
     @Operation(summary = "Auditorías por transportista")
-    public ResponseEntity<Page<AuditoriaTransportista>> listarPorTransportista(
+    public ResponseEntity<Page<AuditoriaDocumento>> listarPorTransportista(
             @PathVariable Long transportistaId,
             @PageableDefault(size = 20, sort = "fechaHora", direction = Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity.ok(repository.findByTransportistaIdOrderByFechaHoraDesc(transportistaId, pageable));
@@ -42,7 +50,7 @@ public class AuditoriaTransportistaController {
 
     @GetMapping("/accion/{accion}")
     @Operation(summary = "Auditorías por acción")
-    public ResponseEntity<Page<AuditoriaTransportista>> listarPorAccion(
+    public ResponseEntity<Page<AuditoriaDocumento>> listarPorAccion(
             @PathVariable String accion,
             @PageableDefault(size = 20, sort = "fechaHora", direction = Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity.ok(repository.findByAccion(accion, pageable));
@@ -50,7 +58,7 @@ public class AuditoriaTransportistaController {
 
     @GetMapping("/fechas")
     @Operation(summary = "Auditorías por rango de fechas")
-    public ResponseEntity<Page<AuditoriaTransportista>> listarPorRangoFechas(
+    public ResponseEntity<Page<AuditoriaDocumento>> listarPorRangoFechas(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime inicio,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime fin,
             @PageableDefault(size = 20, sort = "fechaHora", direction = Sort.Direction.DESC) Pageable pageable) {
@@ -58,7 +66,7 @@ public class AuditoriaTransportistaController {
     }
 
     @GetMapping("/resumen")
-    @Operation(summary = "Resumen de auditorías de transportistas")
+    @Operation(summary = "Resumen de auditorías de documentos")
     public ResponseEntity<Map<String, Long>> getResumenAuditorias() {
         Map<String, Long> resumen = new HashMap<>();
         resumen.put("CREATE", repository.countByAccion("CREATE"));

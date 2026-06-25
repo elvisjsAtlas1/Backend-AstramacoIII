@@ -2,12 +2,13 @@ package com.example.backendastramaco.model.audit;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "auditoria_documentos")
 @Data
-public class AuditoriaDocumentoPersonal {
+public class AuditoriaDocumento {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -17,12 +18,17 @@ public class AuditoriaDocumentoPersonal {
     private String accion;
     private String username;
 
+    // Campos específicos para tracking
     private String tipoDocumentoAnterior;
     private String tipoDocumentoNuevo;
     private String valorAnterior;
     private String valorNuevo;
-    private LocalDateTime fechaVencimientoAnterior;
-    private LocalDateTime fechaVencimientoNuevo;
+    private LocalDate fechaEmisionAnterior;
+    private LocalDate fechaEmisionNuevo;
+    private LocalDate fechaVencimientoAnterior;
+    private LocalDate fechaVencimientoNuevo;
+    private Boolean activoAnterior;
+    private Boolean activoNuevo;
 
     private LocalDateTime fechaHora;
     private String ipAddress;

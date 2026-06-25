@@ -4,16 +4,16 @@ import com.example.backendastramaco.repository.UsuarioRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
 
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-class UsuarioIntegrationTest extends UsuarioBaseIntegrationTest {
+class UsuarioIntegrationTest extends BaseIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
@@ -29,12 +29,12 @@ class UsuarioIntegrationTest extends UsuarioBaseIntegrationTest {
     }
 
     private String obtenerTokenAdmin() throws Exception {
-        String loginBody = """
-        {
-          "username": "admin",
-          "password": "admin123"
-        }
-        """;
+        String loginBody = String.format("""
+            {
+              "username": "%s",
+              "password": "%s"
+            }
+            """, ADMIN_USERNAME, ADMIN_PASSWORD);
 
         String response = mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -54,7 +54,6 @@ class UsuarioIntegrationTest extends UsuarioBaseIntegrationTest {
     })
     @DisplayName("Debe crear usuario con diferentes roles y credenciales")
     void crear_DebeCrearUsuarioCorrectamente(String username, String password, String rol) throws Exception {
-        // Arrange
         String body = String.format("""
             {
               "username": "%s",
@@ -63,18 +62,19 @@ class UsuarioIntegrationTest extends UsuarioBaseIntegrationTest {
             }
             """, username, password, rol);
 
-        // Act & Assert
         mockMvc.perform(post("/api/usuarios")
                         .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
-                .andExpect(status().isOk());
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.username").value(username))
+                .andExpect(jsonPath("$.rol").value(rol))
+                .andExpect(jsonPath("$.activo").value(true));
     }
 
     @Test
     @DisplayName("Debe rechazar creación de usuario sin token de autorización")
     void crear_DebeRechazarUsuarioSinToken() throws Exception {
-        // Arrange
         String body = """
         {
           "username": "usuario.sin.token",
@@ -83,17 +83,15 @@ class UsuarioIntegrationTest extends UsuarioBaseIntegrationTest {
         }
         """;
 
-        // Act & Assert
         mockMvc.perform(post("/api/usuarios")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
-                .andExpect(status().isUnauthorized()); // 🔥 CORRECCIÓN: Cambiado isForbidden() por isUnauthorized()
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
     @DisplayName("Debe rechazar creación de usuario con token inválido")
     void crear_DebeRechazarUsuarioConTokenInvalido() throws Exception {
-        // Arrange
         String invalidToken = "token.invalido.123";
         String body = """
         {
@@ -103,18 +101,16 @@ class UsuarioIntegrationTest extends UsuarioBaseIntegrationTest {
         }
         """;
 
-        // Act & Assert
         mockMvc.perform(post("/api/usuarios")
                         .header("Authorization", "Bearer " + invalidToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
-                .andExpect(status().isUnauthorized()); // 🔥 CORRECCIÓN: Cambiado isForbidden() por isUnauthorized()
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
     @DisplayName("Debe rechazar creación de usuario con username duplicado")
     void crear_DebeRechazarUsuarioDuplicado() throws Exception {
-        // Arrange - Crear primer usuario
         String body = """
             {
               "username": "usuario.duplicado",
@@ -127,13 +123,108 @@ class UsuarioIntegrationTest extends UsuarioBaseIntegrationTest {
                         .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
-                .andExpect(status().isOk());
+                .andExpect(status().isCreated());
 
-        // Act & Assert - Intentar crear el mismo usuario nuevamente
         mockMvc.perform(post("/api/usuarios")
                         .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    @DisplayName("Debe obtener usuario por ID")
+    void obtenerPorId_DebeRetornarUsuario() throws Exception {
+        // Crear usuario primero
+        String body = """
+            {
+              "username": "usuario.obtener",
+              "password": "123456",
+              "rol": "USER"
+            }
+            """;
+
+        String response = mockMvc.perform(post("/api/usuarios")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        Long id = Long.parseLong(response.split("\"id\":")[1].split(",")[0]);
+
+        mockMvc.perform(get("/api/usuarios/{id}", id)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(id))
+                .andExpect(jsonPath("$.username").value("usuario.obtener"));
+    }
+
+    @Test
+    @DisplayName("Debe actualizar usuario")
+    void actualizar_DebeActualizarUsuario() throws Exception {
+        String body = """
+            {
+              "username": "usuario.actualizar",
+              "password": "123456",
+              "rol": "USER"
+            }
+            """;
+
+        String response = mockMvc.perform(post("/api/usuarios")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        Long id = Long.parseLong(response.split("\"id\":")[1].split(",")[0]);
+
+        String updateBody = """
+            {
+              "username": "usuario.actualizado",
+              "password": "654321",
+              "rol": "ADMIN"
+            }
+            """;
+
+        mockMvc.perform(put("/api/usuarios/{id}", id)
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(updateBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.username").value("usuario.actualizado"))
+                .andExpect(jsonPath("$.rol").value("ADMIN"));
+    }
+
+    @Test
+    @DisplayName("Debe eliminar usuario (soft delete)")
+    void eliminar_DebeEliminarUsuarioLogicamente() throws Exception {
+        String body = """
+            {
+              "username": "usuario.eliminar",
+              "password": "123456",
+              "rol": "USER"
+            }
+            """;
+
+        String response = mockMvc.perform(post("/api/usuarios")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        Long id = Long.parseLong(response.split("\"id\":")[1].split(",")[0]);
+
+        mockMvc.perform(delete("/api/usuarios/{id}", id)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isNoContent());
     }
 }

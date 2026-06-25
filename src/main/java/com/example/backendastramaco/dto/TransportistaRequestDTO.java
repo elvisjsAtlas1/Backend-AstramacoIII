@@ -1,41 +1,37 @@
 package com.example.backendastramaco.dto;
 
 import com.example.backendastramaco.model.enums.TipoTransporte;
-import lombok.Getter;
-import lombok.Setter;
 import jakarta.validation.constraints.*;
+import lombok.Data;
 
-@Getter
-@Setter
+@Data
 public class TransportistaRequestDTO {
 
-    @NotBlank
+    @NotBlank(message = "El nombre es obligatorio")
     private String nombre;
 
-    @NotBlank
+    @NotBlank(message = "Los apellidos son obligatorios")
     private String apellidos;
 
-    @NotBlank
-    @Size(min = 8, max = 8)
+    @NotBlank(message = "El DNI es obligatorio")
+    @Size(min = 8, max = 8, message = "El DNI debe tener 8 dígitos")
     private String dni;
 
-    @Min(18)
+    @Min(value = 18, message = "La edad mínima es 18 años")
     private int edad;
 
-    @NotNull
+    @NotNull(message = "El tipo de transporte es obligatorio")
     private TipoTransporte tipoTransporte;
 
-    @NotBlank
+    @NotBlank(message = "La placa es obligatoria")
     private String placa;
 
     private String vehiculoInfo;
 
-    @NotNull
-    @Positive
+    @DecimalMin(value = "0.0", inclusive = true, message = "La capacidad no puede ser negativa")
     private Double capacidad;
 
     private String estado;
 
-    @NotNull
-    private Long usuarioId;
+
 }
