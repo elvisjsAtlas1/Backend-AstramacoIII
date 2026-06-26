@@ -77,15 +77,17 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        // Agrega tu URL de Railway aquí
+
         configuration.setAllowedOrigins(Arrays.asList(
                 "http://localhost:4200",
                 "http://localhost:8080",
-                "https://frontend-astramaco-iii-production.up.railway.app" // <-- ESTA ES LA CLAVE
+                // ✅ CORREGIDO: Sin el guion antes del "iii"
+                "https://frontend-astramacoiii-production.up.railway.app"
         ));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Requested-With", "accept", "Origin"));
         configuration.setAllowCredentials(true);
+        configuration.setMaxAge(3600L); // Memoriza el CORS por 1 hora
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
