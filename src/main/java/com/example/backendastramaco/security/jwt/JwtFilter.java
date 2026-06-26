@@ -29,6 +29,11 @@ public class JwtFilter extends OncePerRequestFilter {
 
         final String authHeader = request.getHeader("Authorization");
         final String requestPath = request.getServletPath();
+        // ✅ CORRECCIÓN: Ignorar peticiones de tipo OPTIONS (preflight de CORS)
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            filterChain.doFilter(request, response);
+            return;
+        }
 
         // ✅ IMPORTANTE: No validar JWT para el endpoint de login
         if (requestPath.equals("/api/auth/login")) {
