@@ -9,9 +9,10 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableJpaAuditing
 @EnableScheduling
 public class BackendAstramacoApplication {
-
+    //esto es un comentario para probar
     public static void main(String[] args) {
         SpringApplication.run(BackendAstramacoApplication.class, args);
+
     }
 
 }
